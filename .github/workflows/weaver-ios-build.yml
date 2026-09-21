@@ -1,0 +1,92 @@
+name: Weaver iOS Build
+
+# Phase 1: 署名なしでiOSのビルドが通ることだけを確認する。
+# 署名・TestFlight配信は、ここが安定してから別ジョブとして追加する（task17 Phase 3以降）。
+#
+# 注意（費用）: macOSランナーはLinuxの10倍の分単位で消費される。
+# このリポジトリはReact Nativeを「ソースからビルド」する設定（ios/Podfile.properties.json の
+# buildReactNativeFromSource=true）のため、初回は長時間かかる見込み。
+# そのため自動実行はせず、手動起動（workflow_dispatch）のみにしている。
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_pod_install:
+        description: 'CocoaPodsのインストールから実行する（キャッシュを使わない）'
+        type: boolean
+        default: true
+
+concurrency:
+  group: weaver-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_unsigned:
+    name: Build (Simulator / No Signing)
+    runs-on: macos-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Setup Ruby (CocoaPods用)
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      # npm install は postinstall/preinstall で環境チェック(solidarity)が走り、
+      # CI環境では落ちることがある。build.sh と同じく --ignore-scripts で入れてから、
+      # 必要な後処理だけを手で実行する。
+      - name: Install npm packages
+        run: npm install --ignore-scripts
+
+      - name: Post-install steps (build.sh と同等)
+        run: |
+          cp "node_modules/@mattermost/compass-icons/font/compass-icons.ttf" "assets/fonts/"
+          cp "node_modules/@mattermost/compass-icons/font/compass-icons.ttf" "android/app/src/main/assets/fonts/"
+          npx patch-package
+          node node_modules/@sentry/cli/scripts/install.js
+
+      - name: Cache CocoaPods
+        if: ${{ !inputs.run_pod_install }}
+        uses: actions/cache@v4
+        with:
+          path: ios/Pods
+          key: pods-${{ hashFiles('ios/Podfile.lock') }}
+
+      - name: pod install
+        run: |
+          cd ios
+          RCT_NEW_ARCH_ENABLED=1 bundle exec pod install
+
+      - name: Build for Simulator (No Signing)
+        run: |
+          cd ios
+          xcodebuild clean build \
+            -workspace Mattermost.xcworkspace \
+            -scheme Mattermost \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+            | tee $RUNNER_TEMP/xcodebuild.log
+        shell: bash
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: ${{ runner.temp }}/xcodebuild.log
+          retention-days: 7
