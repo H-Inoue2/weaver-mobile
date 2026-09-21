@@ -22,9 +22,14 @@
 
 GitHub Actions の **Weaver iOS Build** を手動起動する（`workflow_dispatch`）。
 
-- 自動実行にしていないのは、**macOSランナーが通常の10倍の分単位を消費する**ため。
+- 自動実行にしていないのは、ビルドが長時間（初回52分・2026-09-21実測）かかるため。
+- リポジトリを公開にしている間は Actions の従量課金は発生しない。非公開に戻す場合は
+  **macOSランナーが通常の10倍の分単位を消費する**点に注意（60分のビルドで600分を消費）。
 - このリポジトリは React Native を**ソースからビルドする設定**（`ios/Podfile.properties.json` の
-  `buildReactNativeFromSource=true`）なので、初回は長時間かかる見込み。
+  `buildReactNativeFromSource=true`）。`patches/react-native+0.83.9.patch` がネイティブの
+  `RCTScrollViewComponentView.mm` を書き換えるため、**プリビルド版へは切り替えられない**。
+- 2回目以降の短縮のため **ccache を有効化**している（ワークフローで `USE_CCACHE=1`）。
+  ビルド前後に ccache の hit 率がログに出るので、効いているか確認すること。
 
 ### 環境の要件
 | 項目 | 値 |

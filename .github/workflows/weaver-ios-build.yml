@@ -1,24 +1,30 @@
 name: Weaver iOS Build
 
-# Phase 1: 署名なしでiOSのビルドが通ることだけを確認する。
+# 署名なしでiOSのビルドが通ることを確認するワークフロー。
 # 署名・TestFlight配信は、ここが安定してから別ジョブとして追加する（task17 Phase 3以降）。
 #
-# 注意（費用）: macOSランナーはLinuxの10倍の分単位で消費される。
-# このリポジトリはReact Nativeを「ソースからビルド」する設定（ios/Podfile.properties.json の
-# buildReactNativeFromSource=true）のため、初回は長時間かかる見込み。
-# そのため自動実行はせず、手動起動（workflow_dispatch）のみにしている。
+# ビルド時間: 初回52分（2026-09-21 実測・キャッシュなし）。
+# このリポジトリは React Native をソースからビルドする設定（ios/Podfile.properties.json の
+# buildReactNativeFromSource=true。react-native 本体にネイティブのパッチを当てているため必須）。
+# そのため ccache と各種キャッシュで2回目以降の短縮を図る。
 
 on:
   workflow_dispatch:
     inputs:
-      run_pod_install:
-        description: 'CocoaPodsのインストールから実行する（キャッシュを使わない）'
+      clear_cache:
+        description: 'キャッシュを使わずに最初からビルドする'
         type: boolean
-        default: true
+        default: false
 
 concurrency:
   group: weaver-ios-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  # Podfile の ccache_enabled? が参照する。ccacheEnabled=false の設定より優先される
+  USE_CCACHE: ${{ inputs.clear_cache && '0' || '1' }}
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_MAXSIZE: 2G
 
 jobs:
   build_unsigned:
@@ -46,9 +52,36 @@ jobs:
         with:
           bundler-cache: true
 
-      # npm install は postinstall/preinstall で環境チェック(solidarity)が走り、
-      # CI環境では落ちることがある。build.sh と同じく --ignore-scripts で入れてから、
-      # 必要な後処理だけを手で実行する。
+      - name: Install ccache
+        if: ${{ !inputs.clear_cache }}
+        run: |
+          brew install ccache
+          ccache --version
+
+      # ccacheは「前回と同じコンパイル結果」を再利用する。RNをソースからビルドするため
+      # ここが最も効く。キーは毎回変えて（restore-keysで前回分を拾う）、常に最新を保存する。
+      - name: Restore ccache
+        if: ${{ !inputs.clear_cache }}
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-ios-${{ github.sha }}
+          restore-keys: |
+            ccache-ios-
+
+      - name: Restore CocoaPods
+        if: ${{ !inputs.clear_cache }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: pods-ios-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: |
+            pods-ios-
+
+      # npm install は preinstall/postinstall で環境チェック(solidarity)が走りCIで落ちることがある。
+      # scripts/build.sh と同じく --ignore-scripts で入れ、必要な後処理だけを手で実行する。
       - name: Install npm packages
         run: npm install --ignore-scripts
 
@@ -59,29 +92,32 @@ jobs:
           npx patch-package
           node node_modules/@sentry/cli/scripts/install.js
 
-      - name: Cache CocoaPods
-        if: ${{ !inputs.run_pod_install }}
-        uses: actions/cache@v4
-        with:
-          path: ios/Pods
-          key: pods-${{ hashFiles('ios/Podfile.lock') }}
-
       - name: pod install
         run: |
           cd ios
           RCT_NEW_ARCH_ENABLED=1 bundle exec pod install
 
+      - name: ccache statistics (before build)
+        if: ${{ !inputs.clear_cache }}
+        run: ccache -s || true
+
       - name: Build for Simulator (No Signing)
         run: |
           cd ios
+          set -o pipefail
           xcodebuild clean build \
             -workspace Mattermost.xcworkspace \
             -scheme Mattermost \
             -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
-            | tee $RUNNER_TEMP/xcodebuild.log
+            | tee "$RUNNER_TEMP/xcodebuild.log"
         shell: bash
+
+      # 次回どれだけ再利用できたかを確認する指標。hit率が低ければ設定を見直す
+      - name: ccache statistics (after build)
+        if: ${{ always() && !inputs.clear_cache }}
+        run: ccache -s || true
 
       - name: Upload build log on failure
         if: failure()
