@@ -47,7 +47,7 @@ runs:
     # no AWS secrets, so this step cannot be the one path that fails a run.
     - name: Configure AWS credentials
       if: env.DETOX_AWS_ACCESS_KEY_ID != '' && env.DETOX_AWS_SECRET_ACCESS_KEY != ''
-      uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5.1.1
+      uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
       with:
         aws-access-key-id: ${{ env.DETOX_AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ env.DETOX_AWS_SECRET_ACCESS_KEY }}
