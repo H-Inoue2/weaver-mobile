@@ -40,6 +40,22 @@ export type ExpoRouterLaunchResult = {
 
 const initialNotificationTypes = [PushNotification.NOTIFICATION_TYPE.MESSAGE, PushNotification.NOTIFICATION_TYPE.SESSION];
 
+// K-39/WM-10 §2.2・§2.3: 対象ホストが判明している深いリンク種別。
+// これらの種別が未登録の場合、determineRoute() は getActiveServerUrl()（無関係な別顧客のサーバー）へ
+// 絶対にフォールバックしてはならない（多重防御ガード）。DeepLink.MagicLink はサーバー未登録ではなく
+// ログイン処理自体の失敗が原因のため対象外（WM-10 §2.4／K-39/D-8）。DeepLink.Invalid は対象ホストが
+// 判明しないため対象外（WM-10 §2.5）。
+const deepLinkTypesWithKnownHost: Array<DeepLinkWithData['type']> = [
+    DeepLink.Server,
+    DeepLink.Channel,
+    DeepLink.DirectMessage,
+    DeepLink.GroupMessage,
+    DeepLink.Permalink,
+    DeepLink.Playbooks,
+    DeepLink.PlaybookRuns,
+    DeepLink.PlaybookRunsRetrospective,
+];
+
 /**
  * Determine initial route for Expo Router based on app launch conditions
  */
@@ -123,7 +139,7 @@ async function determineRouteFromNotification(notification: NotificationWithData
  * @param props set of properties used to determine how to launch the app depending on the containing values
  * @returns an Expo Router route result
  */
-const determineRoute = async (props: LaunchProps): Promise<ExpoRouterLaunchResult> => {
+export const determineRoute = async (props: LaunchProps): Promise<ExpoRouterLaunchResult> => {
     let serverUrl: string | undefined;
     switch (props?.launchType) {
         case Launch.DeepLink:
@@ -147,7 +163,10 @@ const determineRoute = async (props: LaunchProps): Promise<ExpoRouterLaunchResul
                         props.extra = undefined;
                         props.launchType = Launch.Normal;
                     } else {
-                        serverUrl = await getActiveServerUrl();
+                        // K-39/WM-10 §2.3 欠落①: 対象ホスト未登録。getActiveServerUrl()（無関係な別顧客の
+                        // サーバー）へは絶対にフォールバックしない。serverUrl はここで代入せず undefined の
+                        // ままにする。props.serverUrl は上で既に対象ホスト（extra.data.serverUrl）を保持して
+                        // いるため、末尾の {...props, serverUrl} でも正しい値のまま生き残る。
                     }
                 }
             }
@@ -171,7 +190,16 @@ const determineRoute = async (props: LaunchProps): Promise<ExpoRouterLaunchResul
     }
 
     if (props.launchError && !serverUrl) {
-        serverUrl = await getActiveServerUrl();
+        // K-39/WM-10 §2.3 欠落②・③: 対象ホストが判明している深いリンク（deepLinkTypesWithKnownHost）が
+        // 未登録の場合、または通知タップで対象サーバーが解決できなかった場合は、getActiveServerUrl()
+        // （無関係な別顧客のサーバー）へ絶対にフォールバックしない。
+        const isKnownHostDeepLink = props.launchType === Launch.DeepLink &&
+            deepLinkTypesWithKnownHost.includes((props.extra as DeepLinkWithData | undefined)?.type as DeepLinkWithData['type']) &&
+            Boolean(props.serverUrl);
+        const isUnresolvedNotification = props.launchType === Launch.Notification;
+        if (!isKnownHostDeepLink && !isUnresolvedNotification) {
+            serverUrl = await getActiveServerUrl();
+        }
     }
 
     cleanupEphemeralPosts();
