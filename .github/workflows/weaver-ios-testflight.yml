@@ -1,0 +1,292 @@
+name: Weaver iOS TestFlight Deploy
+
+# 署名ビルド → アーカイブ → (検証) → TestFlightアップロード。
+# 手動起動のみ（K-39.mdの経緯: 「タイミングは自分で決めたい」との意向により
+# push連動の自動実行は行わない。既存の weaver-ios-build.yml と同じ方針）。
+#
+# weaver-ios-build.yml（署名なし・シミュレータ向けビルド確認用）とは別ファイルにした。
+# 理由: 両者は目的が違う（速い動作確認 vs 実配布）。同一ファイルに同居させると、
+# workflow_dispatch のたびに毎回どちらのジョブも動かせてしまい、
+# 高コストな署名・アップロード処理を「うっかり」実行するリスクが増える。
+# ファイルを分け、それぞれ独立に手動起動できるようにする。
+#
+# このリポジトリは React Native をソースからビルドする設定
+# （ios/Podfile.properties.json の buildReactNativeFromSource=true）のため、
+# Node/Ruby/CocoaPods のセットアップ手順は weaver-ios-build.yml と同一にしている。
+#
+# 3ターゲット構成（project.pbxproj 実測・2026-10-01確認）:
+#   本体   Mattermost           bundle id: com.met-architect.Weaver
+#   通知   NotificationService  bundle id: com.met-architect.Weaver.NotificationService
+#   共有   MattermostShare      bundle id: com.met-architect.Weaver.MattermostShare
+#   Team ID: P63VK5792D
+# いずれも元のproject.pbxprojはAutomatic signing・DEVELOPMENT_TEAM=UQ8HT4Q2XM
+# （フォーク元mattermost-mobileのチームID）のままだったため、
+# .github/scripts/configure_manual_signing.rb で archive 直前に手動署名へ書き換える。
+
+on:
+  workflow_dispatch:
+    inputs:
+      clear_cache:
+        description: 'キャッシュを使わずに最初からビルドする'
+        type: boolean
+        default: false
+      upload_to_testflight:
+        description: 'TestFlightへ実際にアップロードする（falseなら、署名・アーカイブ・書き出し・事前検証〈validate-app〉までで止める）'
+        type: boolean
+        default: false
+
+concurrency:
+  group: weaver-ios-testflight-${{ github.ref }}
+  # アップロード処理は片道（TestFlightへの提出）を含みうるため、
+  # 署名なしビルド（weaver-ios-build.yml）と違い、走行中のキャンセルは行わない。
+  cancel-in-progress: false
+
+env:
+  # Podfile の ccache_enabled? が参照する
+  USE_CCACHE: ${{ inputs.clear_cache && '0' || '1' }}
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_MAXSIZE: 2G
+  # マーケティングバージョン。ios/Mattermost/Info.plist・package.json の
+  # 既存値（2026-10-01確認: 2.45.0）に合わせる。ビルド番号は github.run_number を使う
+  # （このワークフロー専用の連番。App Store Connect側のアプリ登録は2026-09-30時点で
+  #  ビルド未提出のため、1からの連番で問題ない。SecondBrainJoinerと同じ方式）。
+  APP_VERSION: "2.45.0"
+  TEAM_ID: "P63VK5792D"
+
+jobs:
+  deploy_testflight:
+    name: Archive, Sign & Upload to TestFlight
+    runs-on: macos-latest
+    timeout-minutes: 150
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Setup Ruby (CocoaPods / xcodeproj用)
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Install ccache
+        if: ${{ !inputs.clear_cache }}
+        run: |
+          brew install ccache
+          ccache --version
+
+      - name: Restore ccache
+        if: ${{ !inputs.clear_cache }}
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          # Release configurationはDebug（weaver-ios-build.yml）とコンパイルフラグが
+          # 異なりヒット率が下がるため、専用のキー系列にする
+          key: ccache-ios-testflight-${{ github.sha }}
+          restore-keys: |
+            ccache-ios-testflight-
+
+      - name: Restore CocoaPods
+        if: ${{ !inputs.clear_cache }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            ios/Pods
+            ~/Library/Caches/CocoaPods
+          # weaver-ios-build.yml と同じキーにし、どちらのワークフローが先に
+          # 走ってもPods成果物を再利用できるようにする（Podfile.lockは共通）
+          key: pods-ios-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: |
+            pods-ios-
+
+      - name: Install npm packages
+        run: npm install --ignore-scripts
+
+      - name: Post-install steps (build.sh と同等)
+        run: |
+          cp "node_modules/@mattermost/compass-icons/font/compass-icons.ttf" "assets/fonts/"
+          cp "node_modules/@mattermost/compass-icons/font/compass-icons.ttf" "android/app/src/main/assets/fonts/"
+          npx patch-package
+          node node_modules/@sentry/cli/scripts/install.js
+
+      - name: pod install
+        run: |
+          cd ios
+          RCT_NEW_ARCH_ENABLED=1 bundle exec pod install
+
+      - name: ccache statistics (before build)
+        if: ${{ !inputs.clear_cache }}
+        run: ccache -s || true
+
+      # --- ここから署名ビルド専用の手順 ---
+
+      - name: Install Apple Certificate and Provisioning Profiles (3 targets)
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          PP_MAIN_BASE64: ${{ secrets.PP_MAIN_BASE64 }}
+          PP_NOTIFICATION_BASE64: ${{ secrets.PP_NOTIFICATION_BASE64 }}
+          PP_SHARE_BASE64: ${{ secrets.PP_SHARE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          echo "$BUILD_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+          security import "$CERTIFICATE_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+
+          echo "$PP_MAIN_BASE64" | base64 --decode > "$RUNNER_TEMP/pp_main.mobileprovision"
+          echo "$PP_NOTIFICATION_BASE64" | base64 --decode > "$RUNNER_TEMP/pp_notification.mobileprovision"
+          echo "$PP_SHARE_BASE64" | base64 --decode > "$RUNNER_TEMP/pp_share.mobileprovision"
+
+          cp "$RUNNER_TEMP/pp_main.mobileprovision" ~/Library/MobileDevice/Provisioning\ Profiles/
+          cp "$RUNNER_TEMP/pp_notification.mobileprovision" ~/Library/MobileDevice/Provisioning\ Profiles/
+          cp "$RUNNER_TEMP/pp_share.mobileprovision" ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Configure manual signing (3 targets)
+        run: bundle exec ruby .github/scripts/configure_manual_signing.rb
+
+      - name: Update Info.plist (Export Compliance & Build/Marketing Version, 3 targets)
+        run: |
+          set -e
+          for INFO_PLIST in ios/Mattermost/Info.plist ios/NotificationService/Info.plist ios/MattermostShare/Info.plist; do
+            echo "更新: $INFO_PLIST"
+            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" "$INFO_PLIST" \
+              2>/dev/null || /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string ${{ github.run_number }}" "$INFO_PLIST"
+            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ env.APP_VERSION }}" "$INFO_PLIST" \
+              2>/dev/null || /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string ${{ env.APP_VERSION }}" "$INFO_PLIST"
+          done
+          # 輸出コンプライアンス回避（本体のみ。拡張には不要）。
+          # ios/Mattermost/Info.plist には既に false が設定済みだが、明示的に確定させる
+          /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "ios/Mattermost/Info.plist" \
+            2>/dev/null || /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "ios/Mattermost/Info.plist"
+
+      - name: Create exportOptions.plist
+        run: |
+          cat << EOF > exportOptions.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store</string>
+              <key>destination</key>
+              <string>export</string>
+              <key>teamID</key>
+              <string>${{ env.TEAM_ID }}</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>com.met-architect.Weaver</key>
+                  <string>Weaver Mobile Distribution</string>
+                  <key>com.met-architect.Weaver.NotificationService</key>
+                  <string>Weaver Notification Service Distribution</string>
+                  <key>com.met-architect.Weaver.MattermostShare</key>
+                  <string>Weaver Share Extension Distribution</string>
+              </dict>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Build and Archive
+        run: |
+          cd ios
+          set -o pipefail
+          xcodebuild archive \
+            -workspace Mattermost.xcworkspace \
+            -scheme Mattermost \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/Mattermost.xcarchive" \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="${{ env.TEAM_ID }}" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            MARKETING_VERSION=${{ env.APP_VERSION }} \
+            | tee "$RUNNER_TEMP/xcodebuild-archive.log"
+        shell: bash
+
+      - name: ccache statistics (after build)
+        if: ${{ always() && !inputs.clear_cache }}
+        run: ccache -s || true
+
+      - name: Export IPA
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Mattermost.xcarchive" \
+            -exportOptionsPlist exportOptions.plist \
+            -exportPath "$RUNNER_TEMP/export"
+
+      - name: Locate exported IPA
+        id: locate_ipa
+        run: |
+          IPA_PATH=$(find "$RUNNER_TEMP/export" -maxdepth 1 -name "*.ipa" | head -n 1)
+          if [ -z "$IPA_PATH" ]; then
+            echo "IPAが見つかりません（$RUNNER_TEMP/export 配下）" >&2
+            exit 1
+          fi
+          echo "ipa_path=$IPA_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Validate App before Upload
+        env:
+          API_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+          KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$API_KEY" > ~/.appstoreconnect/private_keys/AuthKey_$KEY_ID.p8
+          echo "=== Appleの審査シミュレーターで事前検証を実行します ==="
+          xcrun altool --validate-app -f "${{ steps.locate_ipa.outputs.ipa_path }}" -t ios --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID"
+
+      - name: Upload IPA as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: weaver-ios-ipa-${{ github.run_number }}
+          path: ${{ steps.locate_ipa.outputs.ipa_path }}
+          retention-days: 14
+
+      - name: Upload to TestFlight
+        if: ${{ inputs.upload_to_testflight }}
+        env:
+          API_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+          KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$API_KEY" > ~/.appstoreconnect/private_keys/AuthKey_$KEY_ID.p8
+          echo "=== TestFlightへのアップロードを実行します ==="
+          xcrun altool --upload-app -f "${{ steps.locate_ipa.outputs.ipa_path }}" -t ios --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID"
+
+      - name: Upload skipped (dry-run)
+        if: ${{ !inputs.upload_to_testflight }}
+        run: echo "upload_to_testflight=false のため、TestFlightへのアップロードは行っていません（検証〈validate-app〉とアーティファクト保存のみ）。"
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-testflight-log
+          path: |
+            ${{ runner.temp }}/xcodebuild-archive.log
+          retention-days: 7
