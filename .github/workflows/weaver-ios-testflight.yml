@@ -112,12 +112,14 @@ jobs:
       - name: Install npm packages
         run: npm install --ignore-scripts
 
-      - name: Post-install steps (build.sh と同等)
+      - name: Post-install steps (postinstall.sh と同等)
         run: |
           cp "node_modules/@mattermost/compass-icons/font/compass-icons.ttf" "assets/fonts/"
           cp "node_modules/@mattermost/compass-icons/font/compass-icons.ttf" "android/app/src/main/assets/fonts/"
           npx patch-package
           node node_modules/@sentry/cli/scripts/install.js
+          node scripts/generate-assets.js
+          node scripts/generate-compass-glyph-map.mjs
 
       - name: pod install
         run: |
