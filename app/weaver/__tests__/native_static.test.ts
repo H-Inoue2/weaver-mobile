@@ -1,7 +1,7 @@
 // Copyright (c) 2026-present H.I. MET Architect (Weaver). See LICENSE.txt for license information.
 // Part of Weaver, which is based on Mattermost Mobile (Apache-2.0).
 
-// グループN（UT-123〜UT-136）: ネイティブ設定の静的検査（実ファイルを読む。pbxproj・Info.plist・InfoPlist.strings）
+// グループN（UT-123〜UT-136・UT-271）: ネイティブ設定の静的検査（実ファイルを読む。pbxproj・Info.plist・InfoPlist.strings）
 // 作業ツリーは CRLF（core.autocrlf=true）のため、読み込みは CR を除く。pbxproj の値は独立した実装で読む（ガードの実装と共有しない）。
 
 export {};
@@ -107,6 +107,26 @@ describe('Info.plist（C-9・C-6）', () => {
         expect(text).not.toContain('<key>UIDeviceFamily</key>');
         expect(text).toContain('<key>UISupportedInterfaceOrientations~ipad</key>');
         expect(text).toContain('<key>UIRequiresFullScreen</key>');
+    });
+});
+
+describe('全 Info.plist の許可文言（C-9。D-03）', () => {
+    it('UT-271 ios/*/Info.plist すべての NS*UsageDescription の値に $(PRODUCT_NAME) と mattermost（大文字小文字不問）が無い', () => {
+        const files: string[] = support.walk('ios', ['Info.plist']).filter((f: string) => !f.includes('/Pods/'));
+        expect(files.length).toBeGreaterThanOrEqual(4);
+        const bad: string[] = [];
+        for (const f of files) {
+            const text: string = support.read(f);
+            const re = /<key>(NS[A-Za-z]*UsageDescription)<\/key>\s*<string>([^<]*)<\/string>/g;
+            let m = re.exec(text);
+            while (m) {
+                if (m[2].includes('$(PRODUCT_NAME)') || (/mattermost/i).test(m[2])) {
+                    bad.push(`${f}: ${m[1]}`);
+                }
+                m = re.exec(text);
+            }
+        }
+        expect(bad).toEqual([]);
     });
 });
 
