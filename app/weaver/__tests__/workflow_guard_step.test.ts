@@ -5,6 +5,7 @@
 // 詳細設計 §3.13: ガードは「Update Info.plist」の直後。--release は入力 for_submission にだけ結び付く（upload_to_testflight ではない）。
 // 確認用／提出用の区別: 入力 for_submission（boolean・既定 false）、Summary の SUBMISSION BUILD／CONFIRM BUILD、成果物名 -confirm／-submission。
 
+// eslint-disable-next-line import/order
 const yaml = require('js-yaml');
 const support = require('./weaver_test_support.cjs');
 

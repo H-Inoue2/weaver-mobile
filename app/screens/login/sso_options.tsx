@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-39, 2026-10): the GitLab-compatible login button now shows Weaver's label and icon.
+
 import {Image, type ImageSource} from 'expo-image';
 import React from 'react';
 import {useIntl} from 'react-intl';
@@ -8,6 +10,9 @@ import {StyleSheet, View} from 'react-native';
 
 import Button from '@components/button';
 import {Sso} from '@constants';
+
+import {getWeaverSsoText} from '../../weaver/components/sso_button';
+import {WEAVER_SSO_ICON} from '../../weaver/images';
 
 import type {CompassIconName} from '@components/compass_icon';
 
@@ -27,7 +32,7 @@ type Props = {
 }
 
 const SsoOptions = ({goToSso, intuneAuthService, isIntuneEnabled, ssoOnly, ssoOptions, theme}: Props) => {
-    const {formatMessage} = useIntl();
+    const {formatMessage, locale} = useIntl();
 
     const getSsoButtonOptions = ((ssoType: string): SsoInfo => {
         const sso: SsoInfo = {} as SsoInfo;
@@ -42,8 +47,8 @@ const SsoOptions = ({goToSso, intuneAuthService, isIntuneEnabled, ssoOnly, ssoOp
                 }
                 break;
             case Sso.GITLAB:
-                sso.text = formatMessage({id: 'mobile.login_options.gitlab', defaultMessage: 'GitLab'});
-                sso.imageSrc = require('@assets/images/Icon_Gitlab.png');
+                sso.text = getWeaverSsoText(locale);
+                sso.imageSrc = WEAVER_SSO_ICON;
                 break;
             case Sso.GOOGLE:
                 sso.text = formatMessage({id: 'mobile.login_options.google', defaultMessage: 'Google'});

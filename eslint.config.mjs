@@ -181,5 +181,17 @@ export default defineConfig([
         }
       ]
     }
+  },
+
+  // Weaver (K-39/R1): new Weaver files use the Weaver header. The Mattermost header is an error in these files.
+  {
+    files: ["app/weaver/**/*.{ts,tsx}", "app/routes/(modals)/(settings)/account_deletion.tsx"],
+    rules: {
+      "header/header": [
+        2,
+        "line",
+        " Copyright (c) 2026-present H.I. MET Architect (Weaver). See LICENSE.txt for license information.\n Part of Weaver, which is based on Mattermost Mobile (Apache-2.0)."
+      ]
+    }
   }
 ]);

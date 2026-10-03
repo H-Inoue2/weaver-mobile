@@ -21,9 +21,9 @@ describe('Screens.ACCOUNT_DELETION', () => {
         expect(support.exists(ROUTE)).toBe(true);
     });
 
-    it('UT-89 account_deletion を含む非テストファイルは、app/weaver 配下とルートを除き screens.ts だけ（既存の同名なし）', () => {
+    it('UT-89 account_deletion を含む非テストファイル（import 行・コメントを除く）は、app/weaver 配下とルートを除き screens.ts だけ（既存の同名なし）', () => {
         const files: string[] = support.walk('app', ['.ts', '.tsx']).filter((f: string) => !support.isTestFile(f));
-        const hits = files.filter((f) => (/account_deletion/i).test(support.read(f)) && !f.startsWith('app/weaver/') && f !== ROUTE);
+        const hits = files.filter((f) => (/account_deletion/i).test(support.codeOnly(support.read(f))) && !f.startsWith('app/weaver/') && f !== ROUTE);
         expect(hits).toEqual(['app/constants/screens.ts']);
     });
 });

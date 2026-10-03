@@ -1,3 +1,10 @@
+Weaver (based on Mattermost Mobile)
+
+This software is a modified version of Mattermost Mobile (Apache License, Version 2.0), changed for Weaver by H.I. MET Architect (Weaver).
+The list of changed files is in WEAVER.md (changed-file list). The original copyright and notices below are retained.
+
+--------
+
 Mattermost Mobile
 
 © 2016-present Mattermost, Inc.  All Rights Reserved.  See LICENSE.txt for license information.

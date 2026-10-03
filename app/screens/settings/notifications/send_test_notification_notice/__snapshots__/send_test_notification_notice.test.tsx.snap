@@ -111,7 +111,7 @@ exports[`SendTestNotificationNotice should match snapshot 1`] = `
               }
               testID="markdown_text"
             >
-              Not receiving notifications? Start by sending a test notification to all your devices to check if they’re working as expected. If issues persist, explore ways to solve them with troubleshooting steps.
+              Not receiving notifications? Start by sending a test notification to all your devices to check if they’re working as expected. If issues persist, please contact your administrator.
             </Text>
           </Text>
         </View>
@@ -217,129 +217,6 @@ exports[`SendTestNotificationNotice should match snapshot 1`] = `
                     }
                   >
                     Send a test notification
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-          <View
-            style={
-              [
-                {
-                  "overflow": "hidden",
-                },
-                {
-                  "borderRadius": 2,
-                },
-                undefined,
-                false,
-              ]
-            }
-            testID="RNE_BUTTON_WRAPPER"
-          >
-            <View
-              accessibilityRole="button"
-              accessibilityState={
-                {
-                  "busy": false,
-                  "checked": undefined,
-                  "disabled": false,
-                  "expanded": undefined,
-                  "selected": undefined,
-                }
-              }
-              accessibilityValue={
-                {
-                  "max": undefined,
-                  "min": undefined,
-                  "now": undefined,
-                  "text": undefined,
-                }
-              }
-              accessible={true}
-              collapsable={false}
-              focusable={true}
-              onBlur={[Function]}
-              onClick={[Function]}
-              onFocus={[Function]}
-              onResponderGrant={[Function]}
-              onResponderMove={[Function]}
-              onResponderRelease={[Function]}
-              onResponderTerminate={[Function]}
-              onResponderTerminationRequest={[Function]}
-              onStartShouldSetResponder={[Function]}
-              style={
-                [
-                  undefined,
-                  {
-                    "opacity": 1,
-                  },
-                ]
-              }
-            >
-              <View
-                style={
-                  {
-                    "alignItems": "center",
-                    "backgroundColor": "rgba(28,88,217,0.08)",
-                    "borderColor": "#2089dc",
-                    "borderRadius": 4,
-                    "borderWidth": 0,
-                    "flexDirection": "row",
-                    "justifyContent": "center",
-                    "padding": 8,
-                    "paddingHorizontal": 20,
-                    "paddingVertical": 10,
-                  }
-                }
-              >
-                <View
-                  style={
-                    {
-                      "alignItems": "center",
-                      "flexDirection": "row",
-                      "gap": 7,
-                    }
-                  }
-                  testID="undefined-text-container"
-                >
-                  <View>
-                    <Text
-                      allowFontScaling={false}
-                      selectable={false}
-                      style={
-                        [
-                          {
-                            "color": "#1c58d9",
-                            "fontSize": 18,
-                          },
-                          undefined,
-                          {
-                            "fontFamily": "compass-icons",
-                            "fontStyle": "normal",
-                            "fontWeight": "normal",
-                          },
-                          undefined,
-                        ]
-                      }
-                      testID="undefined-icon"
-                    >
-                      󰏌
-                    </Text>
-                  </View>
-                  <Text
-                    numberOfLines={1}
-                    style={
-                      {
-                        "color": "#1c58d9",
-                        "fontFamily": "OpenSans-SemiBold",
-                        "fontSize": 14,
-                        "fontWeight": "600",
-                        "lineHeight": 20,
-                      }
-                    }
-                  >
-                    Troubleshooting docs
                   </Text>
                 </View>
               </View>

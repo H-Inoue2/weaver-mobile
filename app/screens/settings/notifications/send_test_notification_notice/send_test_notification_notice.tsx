@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-39, 2026-10): removed the external help link that sent user/server IDs to a third party; the help link comes from app/weaver/constants (hidden when empty).
+
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useIntl} from 'react-intl';
 import {StyleSheet, View} from 'react-native';
@@ -13,6 +15,9 @@ import {useExternalLink} from '@hooks/use_external_link';
 import {isMinimumServerVersion} from '@utils/helpers';
 import {logError} from '@utils/log';
 import {tryOpenURL} from '@utils/url';
+
+import {NOTIFICATION_HELP_URL} from '../../../../weaver/constants';
+import {getWeaverMessage} from '../../../../weaver/messages';
 
 import type {CompassIconName} from '@components/compass_icon';
 import type {SectionNoticeButtonProps} from '@components/section_notice/types';
@@ -52,7 +57,7 @@ const SendTestNotificationNotice = ({
         userId,
         isCloud,
         telemetryId,
-    }, 'https://mattermost.com/pl/troubleshoot-notifications');
+    }, NOTIFICATION_HELP_URL);
 
     const onGoToNotificationDocumentation = useCallback(() => {
         tryOpenURL(href);
@@ -112,7 +117,10 @@ const SendTestNotificationNotice = ({
         };
     }, [buttonState, intl, onSendTestNotificationClick]);
 
-    const secondaryButton: SectionNoticeButtonProps = useMemo(() => {
+    const secondaryButton: SectionNoticeButtonProps | undefined = useMemo(() => {
+        if (!NOTIFICATION_HELP_URL) {
+            return undefined;
+        }
         return {
             onClick: onGoToNotificationDocumentation,
             text: intl.formatMessage({id: 'user_settings.notifications.test_notification.go_to_docs', defaultMessage: 'Troubleshooting docs'}),
@@ -127,10 +135,10 @@ const SendTestNotificationNotice = ({
     return (
         <View style={styles.wrapper}>
             <SectionNotice
-                text={intl.formatMessage({
+                text={NOTIFICATION_HELP_URL ? intl.formatMessage({
                     id: 'user_settings.notifications.test_notification.body',
                     defaultMessage: 'Not receiving notifications? Start by sending a test notification to all your devices to check if they’re working as expected. If issues persist, explore ways to solve them with troubleshooting steps.',
-                })}
+                }) : getWeaverMessage(intl.locale, 'weaver.notification_notice.body_no_docs')}
                 title={intl.formatMessage({id: 'user_settings.notifications.test_notification.title', defaultMessage: 'Troubleshooting notifications'})}
                 primaryButton={primaryButton}
                 secondaryButton={secondaryButton}

@@ -1,11 +1,16 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
+
+// Modified for Weaver (K-39, 2026-10): default support link and email subject use Weaver instead of Mattermost.
+
 import TurboLogger from '@mattermost/react-native-turbo-log';
 import {defineMessages} from 'react-intl';
 import {Alert} from 'react-native';
 import Share from 'react-native-share';
 
 import {pathWithPrefix} from '@utils/file';
+
+import {APP_NAME, SUPPORT_URL} from '../weaver/constants';
 
 import type {ReportAProblemMetadata} from '@typings/screens/report_a_problem';
 
@@ -24,7 +29,7 @@ export const shareLogs = async (metadata: ReportAProblemMetadata, siteName: stri
         const logPaths = await TurboLogger.getLogPaths();
         const attachments = excludeLogs ? [] : logPaths.map((path) => pathWithPrefix('file://', path));
         await Share.open({
-            subject: `Problem with ${siteName || 'Mattermost'} mobile app`,
+            subject: `Problem with ${siteName || APP_NAME} mobile app`,
             email: reportAProblemMail,
             failOnCancel: false,
             urls: attachments.length ? attachments : undefined,
@@ -41,7 +46,7 @@ export const emailLogs = async (metadata: ReportAProblemMetadata, siteName: stri
         const attachments = excludeLogs ? [] : logPaths.map((path) => pathWithPrefix('file://', path));
         await Share.shareSingle({
             social: Share.Social.EMAIL as any, // The type is not correct in the library
-            subject: `Problem with ${siteName || 'Mattermost'} mobile app`,
+            subject: `Problem with ${siteName || APP_NAME} mobile app`,
             email: reportAProblemMail,
             urls: attachments.length ? attachments : undefined,
             message: buildEmailBody(metadata),
@@ -51,8 +56,10 @@ export const emailLogs = async (metadata: ReportAProblemMetadata, siteName: stri
     }
 };
 
+// The argument is kept for signature compatibility with the callers; Weaver uses one support page for both editions.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const getDefaultReportAProblemLink = (isLicensed: boolean) => {
-    return isLicensed ? 'https://mattermost.com/pl/report_a_problem_licensed' : 'https://mattermost.com/pl/report_a_problem_unlicensed';
+    return SUPPORT_URL;
 };
 
 export function metadataToString(metadata: ReportAProblemMetadata): string {

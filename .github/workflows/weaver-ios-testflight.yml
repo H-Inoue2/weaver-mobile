@@ -34,6 +34,10 @@ on:
         description: 'TestFlightへ実際にアップロードする（falseなら、署名・アーカイブ・書き出し・事前検証〈validate-app〉までで止める）'
         type: boolean
         default: false
+      for_submission:
+        description: '提出用ビルド（trueなら、ビルド時ガードを --release で実行し、合格しなければ失敗する。App Storeの審査に提出するビルドはこれで作る。falseは確認用ビルド）'
+        type: boolean
+        default: false
 
 concurrency:
   group: weaver-ios-testflight-${{ github.ref }}
@@ -184,6 +188,16 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "ios/Mattermost/Info.plist" \
             2>/dev/null || /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "ios/Mattermost/Info.plist"
 
+      # ビルド時ガード（詳細設計 §3.13）。Configure manual signing（pbxprojの保存し直し）より後、アーカイブより前に検査する。
+      # 確認用ビルド（for_submission=false）は G1・G2・G5 のみ、提出用ビルド（true）は G1〜G5 すべて（--release）。
+      - name: Release guard (confirm build)
+        if: ${{ !inputs.for_submission }}
+        run: bash .github/scripts/weaver_release_guard.sh
+
+      - name: Release guard (submission build, --release)
+        if: ${{ inputs.for_submission }}
+        run: bash .github/scripts/weaver_release_guard.sh --release
+
       - name: Create exportOptions.plist
         run: |
           cat << EOF > exportOptions.plist
@@ -261,10 +275,30 @@ jobs:
           echo "=== Appleの審査シミュレーターで事前検証を実行します ==="
           xcrun altool --validate-app -f "${{ steps.locate_ipa.outputs.ipa_path }}" -t ios --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID"
 
-      - name: Upload IPA as artifact
+      # App Store Connectの「ビルド」欄は版とビルド番号しか表示しない。提出に使うビルドは、この Summary の run 番号（build N）と照合する。
+      - name: Summary (submission build)
+        if: ${{ inputs.for_submission }}
+        run: |
+          echo "SUBMISSION BUILD: version ${{ env.APP_VERSION }} build ${{ github.run_number }} / guard --release PASSED" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summary (confirm build)
+        if: ${{ !inputs.for_submission }}
+        run: |
+          echo "CONFIRM BUILD: version ${{ env.APP_VERSION }} build ${{ github.run_number }} (not for submission)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload IPA as artifact (confirm build)
+        if: ${{ !inputs.for_submission }}
         uses: actions/upload-artifact@v4
         with:
-          name: weaver-ios-ipa-${{ github.run_number }}
+          name: weaver-ios-ipa-${{ github.run_number }}-confirm
+          path: ${{ steps.locate_ipa.outputs.ipa_path }}
+          retention-days: 14
+
+      - name: Upload IPA as artifact (submission build)
+        if: ${{ inputs.for_submission }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: weaver-ios-ipa-${{ github.run_number }}-submission
           path: ${{ steps.locate_ipa.outputs.ipa_path }}
           retention-days: 14
 

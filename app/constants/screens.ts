@@ -5,6 +5,7 @@ import AGENTS_SCREENS from '@agents/constants/screens';
 import PLAYBOOKS_SCREENS from '@playbooks/constants/screens';
 
 const ABOUT = 'about';
+const ACCOUNT_DELETION = 'account_deletion';
 const ACCOUNT = 'account';
 const APPS_FORM = 'apps_form';
 const BOTTOM_SHEET = '(bottom_sheet)';
@@ -91,6 +92,7 @@ const SHOW_TRANSLATION = 'show_translation';
 
 export default {
     ABOUT,
+    ACCOUNT_DELETION,
     ACCOUNT,
     APPS_FORM,
     BOTTOM_SHEET,

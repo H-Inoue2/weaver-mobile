@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-39, 2026-10): added the Weaver account-deletion guidance item below About.
+
 import React, {useCallback} from 'react';
 import {useIntl} from 'react-intl';
 import {Platform} from 'react-native';
@@ -14,6 +16,8 @@ import {useServerDisplayName, useServerUrl} from '@context/server';
 import useAndroidHardwareBackHandler from '@hooks/android_back_handler';
 import {usePreventDoubleTap} from '@hooks/utils';
 import {navigateBack, navigateToSettingsScreen} from '@screens/navigation';
+
+import WeaverSettingsAccountDeletionItem from '../../weaver/components/settings_account_deletion_item';
 
 import ReportProblem from './report_problem';
 
@@ -80,6 +84,7 @@ const Settings = ({helpLink, showHelp, siteName}: SettingsProps) => {
                 optionName='about'
                 testID='settings.about.option'
             />
+            <WeaverSettingsAccountDeletionItem/>
             {Platform.OS === 'android' && <MenuDivider/>}
             {showHelp &&
                 <SettingItem

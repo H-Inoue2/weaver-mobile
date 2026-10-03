@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-39, 2026-10): shows the Weaver app name instead of GitLab for the GitLab-compatible login.
+
 import React, {type ComponentProps} from 'react';
 import {useIntl} from 'react-intl';
 import {Text, View} from 'react-native';
@@ -9,10 +11,12 @@ import FloatingTextInput from '@components/floating_input/floating_text_input_la
 import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
 import {typography} from '@utils/typography';
 
+import {APP_NAME} from '../../../weaver/constants';
+
 import Field from './field';
 
 const services: Record<string, string> = {
-    gitlab: 'GitLab',
+    gitlab: APP_NAME,
     google: 'Google Apps',
     office365: 'Entra ID',
     ldap: 'AD/LDAP',

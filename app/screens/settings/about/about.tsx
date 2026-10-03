@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-39, 2026-10): replaced the Mattermost logo/title, terms/privacy links and community link with Weaver components (app/weaver).
+
 import Clipboard from '@react-native-clipboard/clipboard';
 import {applicationId, nativeApplicationVersion, nativeBuildVersion} from 'expo-application';
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
@@ -10,11 +12,9 @@ import {Text, View} from 'react-native';
 import {getLicenseLoadMetric} from '@actions/remote/license';
 import Config from '@assets/config.json';
 import Button from '@components/button';
-import CompassIcon from '@components/compass_icon';
 import FormattedText from '@components/formatted_text';
 import SettingContainer from '@components/settings/container';
 import {Screens} from '@constants';
-import AboutLinks from '@constants/about_links';
 import {SNACK_BAR_TYPE} from '@constants/snack_bar';
 import {useServerUrl} from '@context/server';
 import {useTheme} from '@context/theme';
@@ -28,10 +28,10 @@ import {typography} from '@utils/typography';
 import {tryOpenURL} from '@utils/url';
 import {onOpenLinkError} from '@utils/url/links';
 
-import LearnMore from './learn_more';
+import WeaverAboutLinks from '../../../weaver/components/about_links';
+import WeaverAboutLogoTitle from '../../../weaver/components/about_logo_title';
+
 import Subtitle from './subtitle';
-import Title from './title';
-import TosPrivacyContainer from './tos_privacy';
 
 const MATTERMOST_BUNDLE_IDS = ['com.mattermost.rnbeta', 'com.mattermost.rn'];
 
@@ -151,24 +151,12 @@ const About = ({config, license}: AboutProps) => {
         tryOpenURL(url, onError);
     }, [intl]);
 
-    const handleAboutTeam = usePreventDoubleTap(useCallback(() => {
-        return openURL(Config.WebsiteURL);
-    }, [openURL]));
-
     const handlePlatformNotice = usePreventDoubleTap(useCallback(() => {
         return openURL(Config.ServerNoticeURL);
     }, [openURL]));
 
     const handleMobileNotice = usePreventDoubleTap(useCallback(() => {
         return openURL(Config.MobileNoticeURL);
-    }, [openURL]));
-
-    const handleTermsOfService = usePreventDoubleTap(useCallback(() => {
-        return openURL(AboutLinks.TERMS_OF_SERVICE);
-    }, [openURL]));
-
-    const handlePrivacyPolicy = usePreventDoubleTap(useCallback(() => {
-        return openURL(AboutLinks.PRIVACY_POLICY);
     }, [openURL]));
 
     const serverVersion = useMemo(() => {
@@ -209,16 +197,7 @@ const About = ({config, license}: AboutProps) => {
         <SettingContainer testID='about'>
             <View style={isTablet ? styles.tabletContentWrapper : undefined}>
                 <View style={styles.logoContainer}>
-                    <CompassIcon
-                        color={theme.centerChannelColor}
-                        name='mattermost'
-                        size={80}
-                        testID='about.logo'
-                    />
-                    <Title
-                        config={config}
-                        license={license}
-                    />
+                    <WeaverAboutLogoTitle/>
                     <Subtitle config={config}/>
                     <View
                         style={styles.thinLine}
@@ -321,11 +300,6 @@ const About = ({config, license}: AboutProps) => {
                             />
                         </View>
                     )}
-                    <LearnMore
-                        config={config}
-                        license={license}
-                        onPress={handleAboutTeam}
-                    />
                     {!MATTERMOST_BUNDLE_IDS.includes(applicationId || '') &&
                     <FormattedText
                         defaultMessage='{site} is powered by Mattermost'
@@ -346,11 +320,7 @@ const About = ({config, license}: AboutProps) => {
                         values={{currentYear: new Date().getFullYear()}}
                     />
                     <View style={styles.tosPrivacyContainer}>
-                        <TosPrivacyContainer
-                            config={config}
-                            onPressPrivacyPolicy={handlePrivacyPolicy}
-                            onPressTOS={handleTermsOfService}
-                        />
+                        <WeaverAboutLinks/>
                     </View>
                     <View style={styles.noticeContainer}>
                         <FormattedText

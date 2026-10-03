@@ -9,7 +9,7 @@ import React from 'react';
 import {useNavigationHeader} from '@hooks/navigation_header';
 import {renderWithIntlAndTheme} from '@test/intl-test-helper';
 
-import AccountDeletionRoute from '../../../routes/(modals)/(settings)/account_deletion';
+import AccountDeletionRoute from '../../routes/(modals)/(settings)/account_deletion';
 
 jest.mock('@hooks/navigation_header', () => ({
     useNavigationHeader: jest.fn(),

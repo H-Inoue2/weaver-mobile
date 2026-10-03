@@ -58,3 +58,29 @@ GitHub Actions の **Weaver iOS Build** を手動起動する（`workflow_dispat
 
 Apache-2.0。`LICENSE.txt` と `NOTICE.txt` を保持すること。
 Mattermost の商標（名称・ロゴ）は使用しない。
+
+## 変更したファイル一覧（Apache-2.0 §4(b)）
+
+Mattermost Mobile（Apache License 2.0）を基に、Weaver 向けに変更したファイル。初期設定（Bundle ID・アイコン・起動画面・表示名）の変更は、上流のコミット `0c0d6c48ec` から `git diff --name-only 0c0d6c48ec HEAD` で再現できる。
+以下は K-39/R1（App Store 審査対応）で変更した、コメントを書けないファイルを含む一覧。TS/TSX の既存ファイルには、先頭に `Modified for Weaver` の1行コメントを付けた。
+
+| ファイル | 変更の要点 |
+|---|---|
+| `app/screens/settings/about/about.tsx` | ロゴ・タイトル・規約リンクを Weaver の部品に差し替え、Mattermost 社への宣伝リンクを削除（帰属表記は残した） |
+| `app/screens/settings/settings.tsx` | 「アカウントの削除について」の項目を About の直下に追加 |
+| `app/constants/screens.ts` | 画面ID `ACCOUNT_DELETION` を追加 |
+| `app/screens/login/sso_options.tsx` | GitLab 互換ボタンの文言・画像を Weaver に |
+| `app/components/system_avatar/index.tsx` | システム投稿のアバターを Weaver のロゴに |
+| `app/screens/edit_profile/components/email_field.tsx` | 「GitLab」の表示を Weaver に |
+| `app/screens/settings/notifications/send_test_notification_notice/send_test_notification_notice.tsx` | `mattermost.com`（ユーザーID等を付けて遷移）へのリンクを除去 |
+| `app/constants/report_a_problem.ts` | 「問題を報告」の既定の宛先を Weaver のサポートに |
+| `app/utils/share_logs.ts` | 既定のサポートリンク・メール件名を Weaver に |
+| `ios/Mattermost/Info.plist` | 許可ダイアログの文言5つのアプリ名を Weaver に |
+| `ios/Mattermost.xcodeproj/project.pbxproj` | `TARGETED_DEVICE_FAMILY` を iPhone 専用（`1`）に |
+| `assets/base/images/icon.png` | アプリ内通知の既定アイコンを Weaver に |
+| `eslint.config.mjs` | 末尾に Weaver 用ヘッダーの上書きブロックを追加 |
+| `.github/workflows/weaver-ios-testflight.yml` | ビルド時ガードと、確認用／提出用ビルドの区別（`for_submission`）を追加 |
+| `NOTICE.txt` | 冒頭に Weaver 版の変更の旨を追記 |
+| `.gitattributes` | `.github/scripts/*.sh` を LF に固定 |
+
+新規: `app/weaver/`（Weaver 固有の定数・文言・画像・部品・画面・テスト）、`app/routes/(modals)/(settings)/account_deletion.tsx`、`assets/base/images/Weaver_Logo*.png`・`Icon_Weaver*.png`、`.github/scripts/weaver_release_guard.sh`。
