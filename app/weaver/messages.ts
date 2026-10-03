@@ -5,7 +5,7 @@ import {useIntl} from 'react-intl';
 
 // Weaver 固有の文言表（en・ja）。上流の en.json・ja.json は触らない。
 // 案内画面の文言の正は運用設計 K39_アカウント削除_運用設計_v0.1.md §7.1（ja）・§7.2（en）。
-// 取り込みの規則: 行頭の記号・見出し記号は含めない／複数行は改行（LF）でつなぐ／穴埋めは二重の角括弧（確定するまで残す。ガードの G3 が検出する）。
+// 取り込みの規則: 行頭の記号・見出し記号は含めない／複数行は改行（LF）でつなぐ／穴埋めを入れるときは二重の角括弧（確定するまで残す。ガードの G3 が検出する）。
 // notification_notice.body_no_docs の正は詳細設計 §3.10。
 export const WEAVER_MESSAGES = {
     en: {
@@ -24,10 +24,11 @@ export const WEAVER_MESSAGES = {
         'weaver.account_deletion.data.posts': 'Chat posts and attached files may remain as your organization\'s records.\n(If you want posts and files removed as well, tell us when you make your request.\nWe will review it with your organization and let you know what is possible.)',
         'weaver.account_deletion.data.workflow': 'Approval-workflow and similar records may keep your name to preserve the record.',
         'weaver.account_deletion.device.title': 'Data on your device',
-        'weaver.account_deletion.device.body': 'Removing the server from this app (or signing out) deletes the data stored on this device for that server. ⟦device-side step: confirm the exact menu name on the device before fixing⟧',
+        'weaver.account_deletion.device.body': 'Removing the server from this app (or signing out) deletes the data stored on this device for that server.',
         'weaver.account_deletion.link.detail': 'Details',
         'weaver.account_deletion.link.privacy': 'Privacy policy',
         'weaver.notification_notice.body_no_docs': 'Not receiving notifications? Start by sending a test notification to all your devices to check if they’re working as expected. If issues persist, please contact your administrator.',
+        'weaver.settings.language': 'Language',
     },
     ja: {
         'weaver.sso_login': 'Weaverでログイン',
@@ -45,10 +46,11 @@ export const WEAVER_MESSAGES = {
         'weaver.account_deletion.data.posts': 'チャットの投稿や添付ファイルは、組織の記録として残る場合があります。\n（投稿等を含めて削除したい場合は、依頼時にお知らせください。\n組織と当社で内容を確認のうえ、対応可否をご連絡します。）',
         'weaver.account_deletion.data.workflow': '承認ワークフロー等の記録には、記録の保全のため氏名が残る場合があります。',
         'weaver.account_deletion.device.title': 'お使いの端末のデータ',
-        'weaver.account_deletion.device.body': 'このアプリで、サーバーの登録を削除（またはログアウト）すると、\n端末に保存されたデータを消去できます。⟦操作名は実機で確認してから確定⟧',
+        'weaver.account_deletion.device.body': 'このアプリで、サーバーの登録を削除（またはログアウト）すると、\n端末に保存されたデータを消去できます。',
         'weaver.account_deletion.link.detail': '詳細',
         'weaver.account_deletion.link.privacy': 'プライバシーポリシー',
         'weaver.notification_notice.body_no_docs': '通知が届きませんか？まず、すべての端末にテスト通知を送って、正常に届くか確認してください。解決しない場合は、管理者にお問い合わせください。',
+        'weaver.settings.language': '言語',
     },
 };
 

@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-39, 2026-10): added the language item (Weaver) to the display settings.
+
 import React, {useCallback} from 'react';
 import {defineMessage, useIntl} from 'react-intl';
 
@@ -12,6 +14,8 @@ import useAndroidHardwareBackHandler from '@hooks/android_back_handler';
 import useUserTimezoneProps from '@hooks/user_timezone';
 import {usePreventDoubleTap} from '@hooks/utils';
 import {navigateBack, navigateToSettingsScreen} from '@screens/navigation';
+
+import WeaverSettingsLanguageItem from '../../../weaver/components/settings_language_item';
 
 import type UserModel from '@typings/database/models/servers/user';
 
@@ -102,6 +106,7 @@ const Display = ({currentUser, hasMilitaryTimeFormat, isCRTEnabled, isCRTSwitchE
                 info={intl.formatMessage(timezone.useAutomaticTimezone ? TIMEZONE_FORMAT[0] : TIMEZONE_FORMAT[1])}
                 testID='display_settings.timezone.option'
             />
+            <WeaverSettingsLanguageItem/>
             {isCRTSwitchEnabled && (
                 <SettingItem
                     optionName='crt'

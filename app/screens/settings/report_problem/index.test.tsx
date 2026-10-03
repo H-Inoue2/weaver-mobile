@@ -47,7 +47,7 @@ describe('screens/settings/report_problem/index', () => {
         );
 
         expect(getByTestId('reportAProblemType')).toHaveTextContent('undefined');
-        expect(getByTestId('allowDownloadLogs')).toHaveTextContent('true');
+        expect(getByTestId('allowDownloadLogs')).toHaveTextContent('false');
     });
 
     it('should enhance ReportProblem with correct observables', async () => {

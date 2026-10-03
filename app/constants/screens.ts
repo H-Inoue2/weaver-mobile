@@ -72,6 +72,7 @@ const SETTINGS = '(settings)';
 const SETTINGS_ADVANCED = 'settings_advanced';
 const SETTINGS_DISPLAY = 'settings_display';
 const SETTINGS_DISPLAY_CLOCK = 'settings_display_clock';
+const SETTINGS_DISPLAY_LANGUAGE = 'settings_display_language';
 const SETTINGS_DISPLAY_CRT = 'settings_display_crt';
 const SETTINGS_DISPLAY_THEME = 'settings_display_theme';
 const SETTINGS_DISPLAY_TIMEZONE = 'settings_display_timezone';
@@ -160,6 +161,7 @@ export default {
     SETTINGS_ADVANCED,
     SETTINGS_DISPLAY,
     SETTINGS_DISPLAY_CLOCK,
+    SETTINGS_DISPLAY_LANGUAGE,
     SETTINGS_DISPLAY_CRT,
     SETTINGS_DISPLAY_THEME,
     SETTINGS_DISPLAY_TIMEZONE,

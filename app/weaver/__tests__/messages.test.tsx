@@ -3,7 +3,7 @@
 
 // グループB（UT-08〜UT-37, UT-234〜）: app/weaver/messages.ts。
 // 案内画面の文言の正は運用設計 K39_アカウント削除_運用設計_v0.1.md §7.1（ja）・§7.2（en）。
-// 取り込みの規則（詳細設計 §3.5.3）: 行頭記号・見出し記号は含めない／複数行は LF／ja の穴埋めは ⟦ ⟧。
+// 取り込みの規則（詳細設計 §3.5.3）: 行頭記号・見出し記号は含めない／複数行は LF。穴埋め ⟦ ⟧ は device.body から削除済み（2026-10-04。実機テストの指摘H）。
 // body_no_docs の値の正は詳細設計 §3.10。
 
 import {renderHook} from '@testing-library/react-native';
@@ -47,8 +47,8 @@ describe('messages.ts: 表の整合', () => {
             expect(k.startsWith('weaver.')).toBe(true);
         }
     });
-    it('UT-14 必須19キーが en・ja の両方にあり、キー集合はちょうどその19個', () => {
-        expect(KEYS).toHaveLength(19);
+    it('UT-14 必須20キー（19キー＋weaver.settings.language）が en・ja の両方にあり、キー集合はちょうどその20個', () => {
+        expect(KEYS).toHaveLength(20);
         expect(Object.keys(en).sort()).toEqual([...KEYS].sort());
         expect(Object.keys(ja).sort()).toEqual([...KEYS].sort());
     });
@@ -92,6 +92,10 @@ describe('messages.ts: 文言の値（正は運用設計 §7.1・§7.2、詳細�
         expect(ja[key]).toBe(JA[key]);
         expect(en[key]).toBe(EN[key]);
     });
+    it('UT-286 weaver.settings.language は ja=言語・en=Language', () => {
+        expect(get('ja', 'weaver.settings.language')).toBe('言語');
+        expect(get('en', 'weaver.settings.language')).toBe('Language');
+    });
     it('UT-30 link.detail・link.privacy はラベルのみ', () => {
         expect(get('ja', 'weaver.account_deletion.link.detail')).toBe('詳細');
         expect(get('ja', 'weaver.account_deletion.link.privacy')).toBe('プライバシーポリシー');
@@ -117,7 +121,7 @@ describe('messages.ts: 文言の値（正は運用設計 §7.1・§7.2、詳細�
 describe('messages.ts: 全キー・全言語の常時検査', () => {
     const tables: Array<[string, Record<string, string>]> = [['ja', ja], ['en', en]];
 
-    it('UT-32 mattermost・gitlab・【】・TODO_WEAVER・要確定を含まない。⟦⟧ は device.body の2値だけ', () => {
+    it('UT-32 mattermost・gitlab・【】・TODO_WEAVER・要確定を含まない。⟦⟧ はどの値にも無い（device.body の穴埋めを削除）', () => {
         for (const [, table] of tables) {
             for (const key of Object.keys(table)) {
                 const v = table[key];
@@ -125,11 +129,7 @@ describe('messages.ts: 全キー・全言語の常時検査', () => {
                 expect(v).not.toMatch(/gitlab/i);
                 expect(v).not.toMatch(/[【】]/);
                 expect(v).not.toMatch(/TODO_WEAVER|要確定/);
-                if (key === 'weaver.account_deletion.device.body') {
-                    expect(v).toMatch(/⟦[^⟧]+⟧/);
-                } else {
-                    expect(v).not.toMatch(/[⟦⟧]/);
-                }
+                expect(v).not.toMatch(/[⟦⟧]/);
             }
         }
     });

@@ -74,7 +74,7 @@ describe('screens/report_a_problem/index', () => {
         expect(getByTestId('reportAProblemMail')).toHaveTextContent('undefined');
         expect(getByTestId('reportAProblemLink')).toHaveTextContent('undefined');
         expect(getByTestId('siteName')).toHaveTextContent('undefined');
-        expect(getByTestId('allowDownloadLogs')).toHaveTextContent('true');
+        expect(getByTestId('allowDownloadLogs')).toHaveTextContent('false');
         expect(getByTestId('isFreeEdition')).toHaveTextContent('true');
         expect(getByTestId('attachLogsEnabled')).toHaveTextContent('false');
         expect(getByTestId('currentUserId')).toHaveTextContent('');
@@ -127,7 +127,7 @@ describe('screens/report_a_problem/index', () => {
         expect(getByTestId('reportAProblemMail')).toHaveTextContent('test@example.com');
         expect(getByTestId('reportAProblemLink')).toHaveTextContent('https://example.com');
         expect(getByTestId('siteName')).toHaveTextContent('Test Site');
-        expect(getByTestId('allowDownloadLogs')).toHaveTextContent('true');
+        expect(getByTestId('allowDownloadLogs')).toHaveTextContent('false');
         expect(getByTestId('isFreeEdition')).toHaveTextContent('true');
         expect(getByTestId('attachLogsEnabled')).toHaveTextContent('true');
         expect(getByTestId('currentUserId')).toHaveTextContent('user1');

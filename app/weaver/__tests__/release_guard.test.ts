@@ -363,12 +363,10 @@ describe('ガード 移植性（macOS ランナー・Git Bash。静的検査）'
     });
 });
 
-// 提出前チェック（UT-33・ST-17）: 実リポジトリを --release で検査する。device.body の穴埋め⟦ ⟧が確定するまでは失敗するのが正しいので、
-// 常時のテストにはしない。提出用ビルドの前に WEAVER_PRE_SUBMIT=1 で実行する（確定後は終了コード0になること）。
-// eslint-disable-next-line no-process-env
-const preSubmit = process.env.WEAVER_PRE_SUBMIT ? it : it.skip;
-describe('提出前チェック（手順。WEAVER_PRE_SUBMIT=1 のときだけ実行）', () => {
-    preSubmit('UT-33 実リポジトリを --release で検査: 終了コード0（穴埋めが消え、URL・メールが確定値）', () => {
+// 提出前チェック（UT-33・ST-17）: 実リポジトリを --release で検査する。device.body の穴埋め⟦ ⟧は削除済み（2026-10-04）のため、
+// 常時のテストにした（穴埋めの混入は G3 が保険として止める）。
+describe('提出前チェック（実リポジトリの --release）', () => {
+    it('UT-33 実リポジトリを --release で検査: 終了コード0（穴埋めが無く、URL・メールが確定値）', () => {
         const r = support.runGuard(['--release', support.ROOT]);
         expect({status: r.status, out: r.out}).toEqual({status: 0, out: r.out});
     });

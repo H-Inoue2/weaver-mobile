@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-39, 2026-10): app log attachment is always disabled (app/weaver/allow_download_logs.ts).
+
 import {withDatabase, withObservables} from '@nozbe/watermelondb/react';
 import React from 'react';
 import {combineLatest} from 'rxjs';
@@ -12,7 +14,9 @@ import {withServerUrl} from '@context/server';
 import {observeIsBoREnabled, observeIsPostPriorityEnabled} from '@queries/servers/post';
 import {queryPreferencesByCategoryAndName} from '@queries/servers/preference';
 import {observeCanUploadFiles} from '@queries/servers/security';
-import {observeConfigBooleanValue, observeMaxFileCount} from '@queries/servers/system';
+import {observeMaxFileCount} from '@queries/servers/system';
+
+import {observeAllowDownloadLogs} from '../../../weaver/allow_download_logs';
 
 import QuickActions from './quick_actions';
 
@@ -25,7 +29,7 @@ type EnhancedProps = WithDatabaseArgs & {
 const enhanced = withObservables([], ({database, serverUrl}: EnhancedProps) => {
     const canUploadFiles = observeCanUploadFiles(database);
     const maxFileCount = observeMaxFileCount(database);
-    const allowDownloadLogs = observeConfigBooleanValue(database, 'AllowDownloadLogs', true);
+    const allowDownloadLogs = observeAllowDownloadLogs(database);
     const attachLogsEnabled = queryPreferencesByCategoryAndName(database, Preferences.CATEGORIES.ADVANCED_SETTINGS, Preferences.ATTACH_APP_LOGS).
         observeWithColumns(['value']).
         pipe(map((prefs) => prefs[0]?.value === 'true'));

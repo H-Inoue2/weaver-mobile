@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-39, 2026-10): uploadUserProfileImage returns an error when the server rejects the upload (the upstream code ignored the HTTP status).
+
 /* eslint-disable max-lines */
 
 import {chunk} from 'lodash';
@@ -8,6 +10,7 @@ import {chunk} from 'lodash';
 import {updateChannelsDisplayName, deletePostsForChannelsWithAutotranslation} from '@actions/local/channel';
 import {updateRecentCustomStatuses, updateLocalUser} from '@actions/local/user';
 import {fetchRolesIfNeeded} from '@actions/remote/role';
+import ClientError from '@client/rest/error';
 import {General} from '@constants';
 import DatabaseManager from '@database/manager';
 import {debounce} from '@helpers/api/general';
@@ -775,7 +778,7 @@ export const uploadUserProfileImage = async (serverUrl: string, localPath: strin
         if (currentUser) {
             const endpoint = `${client.getUserRoute(currentUser.id)}/image`;
 
-            await client.apiClient.upload(endpoint, localPath, {
+            const response = await client.apiClient.upload(endpoint, localPath, {
                 skipBytes: 0,
                 method: 'POST',
                 multipart: {
@@ -783,6 +786,16 @@ export const uploadUserProfileImage = async (serverUrl: string, localPath: strin
                 },
                 headers: client.getRequestHeaders('POST'),
             });
+
+            // The network client resolves even for 4xx/5xx. Treat a rejected upload as an error
+            // (without a response object, e.g. in tests, it is treated as success).
+            if (response && (response.ok === false || (typeof response.code === 'number' && response.code >= 400))) {
+                throw new ClientError(client.apiClient.baseUrl, {
+                    message: 'Unable to upload the profile image',
+                    url: endpoint,
+                    status_code: response.code,
+                });
+            }
         }
         return {};
     } catch (error) {

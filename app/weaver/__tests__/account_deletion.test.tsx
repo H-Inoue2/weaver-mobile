@@ -150,14 +150,14 @@ describe('AccountDeletionScreen', () => {
         expect(() => renderWithIntlAndTheme(<AccountDeletionScreen/>)).not.toThrow();
     });
 
-    it.each(['ja', 'en'])('UT-102 画面の全表示テキスト（%s）: Mattermost・GitLab・【】を含まず、⟦ は device.body の1か所だけ', (locale) => {
+    it.each(['ja', 'en'])('UT-102 画面の全表示テキスト（%s）: Mattermost・GitLab・【】・⟦⟧ を含まない（device.body の穴埋めを削除）', (locale) => {
         const r = renderWithIntlAndTheme(<AccountDeletionScreen/>, {locale});
         const all: string = support.textNodes(r.toJSON()).join('\n');
         expect(all).not.toMatch(/mattermost/i);
         expect(all).not.toMatch(/gitlab/i);
         expect(all).not.toMatch(/[【】]/);
-        expect(all.split('⟦').length - 1).toBe(1);
-        expect(textOf(r, 'account_deletion.device.body')).toContain('⟦');
+        expect(all).not.toMatch(/[⟦⟧]/);
+        expect(textOf(r, 'account_deletion.device.body')).not.toMatch(/[⟦⟧]/);
     });
 
     it('UT-240 表示順（運用設計 §7.1 の並び）: 表題・導入・依頼方法の見出し・手順1・手順2・注1・注2・処理内容・端末データ・詳細・プライバシー', () => {

@@ -24,6 +24,7 @@ const KEYS = [
     'weaver.account_deletion.link.detail',
     'weaver.account_deletion.link.privacy',
     'weaver.notification_notice.body_no_docs',
+    'weaver.settings.language',
 ];
 
 const JA = {
@@ -62,10 +63,11 @@ const JA = {
     'weaver.account_deletion.device.title': 'お使いの端末のデータ',
     'weaver.account_deletion.device.body': [
         'このアプリで、サーバーの登録を削除（またはログアウト）すると、',
-        '端末に保存されたデータを消去できます。⟦操作名は実機で確認してから確定⟧',
+        '端末に保存されたデータを消去できます。',
     ].join('\n'),
     'weaver.account_deletion.link.detail': '詳細',
     'weaver.account_deletion.link.privacy': 'プライバシーポリシー',
+    'weaver.settings.language': '言語',
     'weaver.notification_notice.body_no_docs': '通知が届きませんか？まず、すべての端末にテスト通知を送って、正常に届くか確認してください。解決しない場合は、管理者にお問い合わせください。',
 };
 
@@ -100,9 +102,10 @@ const EN = {
     ].join('\n'),
     'weaver.account_deletion.data.workflow': 'Approval-workflow and similar records may keep your name to preserve the record.',
     'weaver.account_deletion.device.title': 'Data on your device',
-    'weaver.account_deletion.device.body': 'Removing the server from this app (or signing out) deletes the data stored on this device for that server. ⟦device-side step: confirm the exact menu name on the device before fixing⟧',
+    'weaver.account_deletion.device.body': 'Removing the server from this app (or signing out) deletes the data stored on this device for that server.',
     'weaver.account_deletion.link.detail': 'Details',
     'weaver.account_deletion.link.privacy': 'Privacy policy',
+    'weaver.settings.language': 'Language',
     'weaver.notification_notice.body_no_docs': 'Not receiving notifications? Start by sending a test notification to all your devices to check if they’re working as expected. If issues persist, please contact your administrator.',
 };
 
