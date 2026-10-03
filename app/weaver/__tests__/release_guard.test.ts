@@ -280,6 +280,9 @@ describe('ガード G5: constants.ts の書式（常時）', () => {
     it('UT-211 値が次行に折り返し（= の後で改行）: 1', () => {
         expectFail(guard({constRaw: {SUPPORT_URL: 'export const SUPPORT_URL =\n    \'https://weaver.example/support\';'}}, false), 'SUPPORT_URL');
     });
+    it('UT-270 SUPPORT_URL の行の末尾にコメント（1行書式 export const NAME = \'…\'; の崩れ。--release なし）: 1', () => {
+        expectFail(guard({constRaw: {SUPPORT_URL: "export const SUPPORT_URL = 'https://weaver.example/support'; // memo"}}, false), 'SUPPORT_URL');
+    });
     it('UT-212 constants.ts が存在しない: 1', () => {
         expectFail(guard({omit: ['constants']}, false), 'constants.ts');
     });
