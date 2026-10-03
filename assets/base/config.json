@@ -1,5 +1,5 @@
 {
-    "AuthUrlScheme": "mmauth://",
+    "AuthUrlScheme": "mmauthbeta://",
     "AuthUrlSchemeDev": "mmauthbeta://",
     "DefaultServerUrl": "",
     "DefaultServerName": "",
