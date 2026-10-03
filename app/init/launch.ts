@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-39, 2026-10): a launch URL that is an SSO redirect is not treated as a deep link launch.
+
 import {AppState, DeviceEventEmitter, Linking, Platform} from 'react-native';
 import {Notifications} from 'react-native-notifications';
 
@@ -26,6 +28,8 @@ import {handleDeepLink, getLaunchPropsFromDeepLink} from '@utils/deep_link';
 import {logInfo} from '@utils/log';
 import {convertToNotificationData} from '@utils/notification';
 import {removeProtocol} from '@utils/url';
+
+import {isSsoCallbackUrl} from '../weaver/sso_callback_url';
 
 import type {DeepLinkWithData, LaunchProps} from '@typings/launch';
 
@@ -70,7 +74,7 @@ export async function determineInitialExpoRoute(): Promise<ExpoRouterLaunchResul
 
     // Check for deep link launch
     const deepLinkUrl = await Linking.getInitialURL();
-    if (deepLinkUrl) {
+    if (deepLinkUrl && !isSsoCallbackUrl(deepLinkUrl)) {
         return determineRouteFromDeeplink(deepLinkUrl);
     }
 

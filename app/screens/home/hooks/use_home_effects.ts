@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-39, 2026-10): development-only log of the launch props (to find where an invalid-link alert comes from).
+
 import {useHardwareKeyboardEvents} from '@mattermost/hardware-keyboard';
 import {useEffect, useCallback, useMemo} from 'react';
 import {useIntl} from 'react-intl';
@@ -16,7 +18,7 @@ import {getAllServers} from '@queries/app/servers';
 import {navigateToScreen, navigateToRoot} from '@screens/navigation';
 import {NavigationStore} from '@store/navigation_store';
 import {alertInvalidDeepLink, parseAndHandleDeepLink} from '@utils/deep_link';
-import {logError} from '@utils/log';
+import {logDebug, logError} from '@utils/log';
 import {alertChannelArchived, alertChannelRemove, alertTeamRemove} from '@utils/navigation';
 import {notificationError} from '@utils/notification';
 
@@ -93,6 +95,11 @@ export function useHomeScreenEffects(props: LaunchProps) {
     }, [appState, serverUrl]);
 
     useDidMount(() => {
+        if (__DEV__) {
+            // Development only. The query string (login code, tokens) is never logged.
+            logDebug('[weaver] home mount', props.launchType, 'launchError:', props.launchError, 'url:', (props.extra as DeepLinkWithData | undefined)?.url?.split('?')[0]);
+        }
+
         if (props.launchType === Launch.DeepLink) {
             if (props.launchError) {
                 alertInvalidDeepLink(intl);

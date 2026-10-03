@@ -1,13 +1,17 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-39, 2026-10): SSO redirect URLs are ignored before any deep link handling (no invalid-link alert after login).
+
 import {Linking} from 'react-native';
 import urlParse from 'url-parse';
 
-import {Sso} from '@constants';
 import {DEFAULT_LOCALE} from '@i18n';
 import {alertInvalidDeepLink, parseAndHandleDeepLink} from '@utils/deep_link';
 import {getIntlShape} from '@utils/general';
+import {logDebug} from '@utils/log';
+
+import {isSsoCallbackUrl} from '../weaver/sso_callback_url';
 
 /**
  * Custom native intent handler for expo-router
@@ -18,15 +22,19 @@ import {getIntlShape} from '@utils/general';
  */
 
 const handleUrl = async (event: {url: string}) => {
+    if (__DEV__) {
+        // Development only. The query string (login code, tokens) is never logged.
+        logDebug('[weaver] handleUrl', event.url?.split('?')[0], 'sso:', isSsoCallbackUrl(event.url));
+    }
+
+    // Ignore SSO redirect URLs (with or without the scheme). The SSO screen handles them.
+    if (isSsoCallbackUrl(event.url)) {
+        return true;
+    }
+
     const parsed = urlParse(event.url);
     if (parsed.protocol && !parsed.host) {
         return false;
-    }
-
-    // Ignore SSO redirect URLs
-    if (event.url?.startsWith(Sso.REDIRECT_URL_SCHEME) ||
-            event.url?.startsWith(Sso.REDIRECT_URL_SCHEME_DEV)) {
-        return true;
     }
 
     if (event.url) {

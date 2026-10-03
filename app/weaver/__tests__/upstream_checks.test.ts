@@ -51,7 +51,7 @@ describe('K3・K4・K6・K7 と外部送信の回帰', () => {
         expect(hits).toEqual([]);
     });
 
-    it('UT-145 K6: app/weaver の外で import 指定子に /weaver/ を含む非テストファイルが、ちょうど9ファイル', () => {
+    it('UT-145 K6: app/weaver の外で import 指定子に /weaver/ を含む非テストファイルが、ちょうど11ファイル', () => {
         const EXPECTED = [
             'app/screens/settings/about/about.tsx',
             'app/screens/settings/settings.tsx',
@@ -62,6 +62,8 @@ describe('K3・K4・K6・K7 と外部送信の回帰', () => {
             'app/constants/report_a_problem.ts',
             'app/utils/share_logs.ts',
             'app/routes/(modals)/(settings)/account_deletion.tsx',
+            'app/routes/+native-intent.ts',
+            'app/init/launch.ts',
         ].sort();
         const specRe = /(?:from\s+|import\s+|require\(\s*)['"]([^'"]+)['"]/g;
         const hits = sourceFiles(['app']).filter((f) => {
