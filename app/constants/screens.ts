@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-39, 2026-10): added the ACCOUNT_DELETION screen id for the account-deletion guidance screen.
+
 import AGENTS_SCREENS from '@agents/constants/screens';
 import PLAYBOOKS_SCREENS from '@playbooks/constants/screens';
 

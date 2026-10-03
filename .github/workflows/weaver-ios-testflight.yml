@@ -276,10 +276,17 @@ jobs:
           xcrun altool --validate-app -f "${{ steps.locate_ipa.outputs.ipa_path }}" -t ios --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID"
 
       # App Store Connectの「ビルド」欄は版とビルド番号しか表示しない。提出に使うビルドは、この Summary の run 番号（build N）と照合する。
+      # 「提出用」と書くのは、実際にTestFlightへ上がる run（for_submission かつ upload_to_testflight）だけ。
+      # アップロードしない run の番号は App Store Connect に存在しないので、記録・照合の対象にしない。
       - name: Summary (submission build)
-        if: ${{ inputs.for_submission }}
+        if: ${{ inputs.for_submission && inputs.upload_to_testflight }}
         run: |
           echo "SUBMISSION BUILD: version ${{ env.APP_VERSION }} build ${{ github.run_number }} / guard --release PASSED" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summary (submission check only, not uploaded)
+        if: ${{ inputs.for_submission && !inputs.upload_to_testflight }}
+        run: |
+          echo "SUBMISSION CHECK ONLY: version ${{ env.APP_VERSION }} run ${{ github.run_number }} / guard --release PASSED / not uploaded (this build number does not exist in App Store Connect)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summary (confirm build)
         if: ${{ !inputs.for_submission }}
@@ -295,10 +302,18 @@ jobs:
           retention-days: 14
 
       - name: Upload IPA as artifact (submission build)
-        if: ${{ inputs.for_submission }}
+        if: ${{ inputs.for_submission && inputs.upload_to_testflight }}
         uses: actions/upload-artifact@v4
         with:
           name: weaver-ios-ipa-${{ github.run_number }}-submission
+          path: ${{ steps.locate_ipa.outputs.ipa_path }}
+          retention-days: 14
+
+      - name: Upload IPA as artifact (submission check only, not uploaded)
+        if: ${{ inputs.for_submission && !inputs.upload_to_testflight }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: weaver-ios-ipa-${{ github.run_number }}-submission-check
           path: ${{ steps.locate_ipa.outputs.ipa_path }}
           retention-days: 14
 
