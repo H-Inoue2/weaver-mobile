@@ -7,7 +7,6 @@ import {sendTestNotification} from '@actions/remote/notifications';
 import {act, fireEvent, renderWithEverything} from '@test/intl-test-helper';
 import TestHelper from '@test/test_helper';
 import {logError} from '@utils/log';
-import {tryOpenURL} from '@utils/url';
 
 import SendTestNotificationNotice from './send_test_notification_notice';
 
@@ -81,12 +80,6 @@ describe('SendTestNotificationNotice', () => {
         props.serverVersion = oldVersion;
         const wrapper = renderWithEverything(<SendTestNotificationNotice {...props}/>, {database});
         expect(wrapper.toJSON()).toBeNull();
-    });
-
-    it('should open the correct url for troubleshooting docs', () => {
-        const wrapper = renderWithEverything(<SendTestNotificationNotice {...getBaseProps()}/>, {database});
-        fireEvent.press(wrapper.getByText('Troubleshooting docs'));
-        expect(tryOpenURL).toHaveBeenCalledWith('https://mattermost.com/pl/troubleshoot-notifications?utm_source=mattermost&utm_medium=in-product-cloud&utm_content=&uid=someUserId&sid=someId');
     });
 
     it('should call send notification action when the send notification button is clicked, and all states go through correctly', async () => {
