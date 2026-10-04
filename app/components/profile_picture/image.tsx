@@ -34,6 +34,14 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
     };
 });
 
+const hashString = (value: string) => {
+    let hash = 5381;
+    for (let i = 0; i < value.length; i++) {
+        hash = ((hash * 33) + value.charCodeAt(i)) | 0;
+    }
+    return (hash >>> 0).toString(16);
+};
+
 const Image = ({author, forwardRef, iconSize, size, source, url}: Props) => {
     const theme = useTheme();
     let serverUrl = useServerUrl();
@@ -65,13 +73,17 @@ const Image = ({author, forwardRef, iconSize, size, source, url}: Props) => {
     // in the containing object (author).
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [author, serverUrl, source, lastPictureUpdateAt]);
+    const localUri = imgSource?.uri?.startsWith('file://') ? imgSource.uri : undefined;
     const id = useMemo(() => {
         if (author) {
-            return `user-${author.id}-${lastPictureUpdateAt}`;
+            const base = `user-${author.id}-${lastPictureUpdateAt}`;
+
+            // Weaver K-39: 選んだ直後のプレビュー（file://）は、サーバー画像と同じ cacheKey だとキャッシュ済みのサーバー画像が出続けるため、URIのハッシュで別のキーにする
+            return localUri ? `${base}-preview-${hashString(localUri)}` : base;
         }
 
         return undefined;
-    }, [author, lastPictureUpdateAt]);
+    }, [author, lastPictureUpdateAt, localUri]);
 
     if (typeof source === 'string') {
         return (
