@@ -70,7 +70,9 @@ describe('Notification utilities', () => {
             await canReceiveNotifications(serverUrl, PUSH_PROXY_RESPONSE_NOT_AVAILABLE, intl);
 
             expect(EphemeralStore.setPushProxyVerificationState).toHaveBeenCalledWith(serverUrl, PUSH_PROXY_STATUS_NOT_AVAILABLE);
-            expect(Alert.alert).toHaveBeenCalled();
+
+            // Weaver(K-39): 接続直後のアラートは出さない（状態の記録とヘッダーの警告アイコンは従来どおり）
+            expect(Alert.alert).not.toHaveBeenCalled();
         });
 
         test('handles PUSH_PROXY_RESPONSE_UNKNOWN', async () => {

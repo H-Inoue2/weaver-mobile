@@ -18,14 +18,12 @@ export function pushDisabledInServerAck(serverUrl: string) {
 }
 
 export async function canReceiveNotifications(serverUrl: string, verification: string, intl: IntlShape) {
-    const hasAckNotification = await pushDisabledInServerAck(serverUrl);
-
     switch (verification) {
         case PUSH_PROXY_RESPONSE_NOT_AVAILABLE:
+            // Weaver(K-39): 接続直後の「このサーバーからは通知を受け取れない」アラートは出さない。
+            // 検証状態は記録するので、ヘッダーの警告アイコン（タップで alertPushProxyError）は従来どおり状態を示す。
+            // 上流は未確認(ack)のときだけここで alertPushProxyError を出していた。
             EphemeralStore.setPushProxyVerificationState(serverUrl, PUSH_PROXY_STATUS_NOT_AVAILABLE);
-            if (!hasAckNotification) {
-                alertPushProxyError(intl, serverUrl);
-            }
             break;
         case PUSH_PROXY_RESPONSE_UNKNOWN:
             EphemeralStore.setPushProxyVerificationState(serverUrl, PUSH_PROXY_STATUS_UNKNOWN);
