@@ -28,7 +28,7 @@ export type FilePickerOptions = {
 
 const PROFILE_IMAGE_MAX_SIZE = 512;
 const PROFILE_IMAGE_QUALITY = 0.8;
-const PROFILE_IMAGE_TYPES = ['image/jpeg', 'image/png'];
+const PROFILE_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png'];
 
 export default class FilePickerUtil {
     private readonly uploadFiles: (files: ExtractedFileInfo[]) => void;
