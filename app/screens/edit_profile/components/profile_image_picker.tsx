@@ -48,6 +48,7 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
 });
 
 type ImagePickerProps = {
+    onError: (error: unknown) => void;
     onRemoveProfileImage: UploadExtractedFile;
     uploadFiles: UploadExtractedFile;
     user: UserModel;
@@ -60,6 +61,7 @@ const hasPictureUrl = (user: UserModel, serverUrl: string) => {
 };
 
 const ProfileImagePicker = ({
+    onError,
     onRemoveProfileImage,
     uploadFiles,
     user,
@@ -67,7 +69,7 @@ const ProfileImagePicker = ({
     const theme = useTheme();
     const serverUrl = useServerUrl();
     const intl = useIntl();
-    const pictureUtils = useMemo(() => new PickerUtil(intl, uploadFiles!), [intl, uploadFiles]);
+    const pictureUtils = useMemo(() => new PickerUtil(intl, uploadFiles!, {profileImage: true, onError}), [intl, uploadFiles, onError]);
 
     const canRemovePicture = hasPictureUrl(user, serverUrl);
     const styles = getStyleSheet(theme);
@@ -89,11 +91,6 @@ const ProfileImagePicker = ({
                         pickerAction='browsePhotoLibrary'
                         pictureUtils={pictureUtils}
                     />
-                    <PanelItem
-                        pickerAction='browseFiles'
-                        pictureUtils={pictureUtils}
-
-                    />
                     {canRemovePicture && (
                         <PanelItem
                             pickerAction='removeProfilePicture'
@@ -104,7 +101,7 @@ const ProfileImagePicker = ({
             );
         };
 
-        const snapPoint = bottomSheetSnapPoint(4, ITEM_HEIGHT) + TITLE_HEIGHT;
+        const snapPoint = bottomSheetSnapPoint(3, ITEM_HEIGHT) + TITLE_HEIGHT;
 
         return bottomSheet(renderContent, [1, snapPoint]);
     }, [canRemovePicture, onRemoveProfileImage, pictureUtils, styles.title]));

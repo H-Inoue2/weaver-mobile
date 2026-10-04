@@ -14,10 +14,11 @@ import type {NewProfileImage} from '@typings/screens/edit_profile';
 type Props = {
     currentUser: UserModel;
     lockedPicture: boolean;
+    onError: (error: unknown) => void;
     onUpdateProfilePicture: (newProfileImage: NewProfileImage) => void;
 }
 
-const UserProfilePicture = ({currentUser, lockedPicture, onUpdateProfilePicture}: Props) => {
+const UserProfilePicture = ({currentUser, lockedPicture, onError, onUpdateProfilePicture}: Props) => {
     if (lockedPicture) {
         return (
             <ProfilePicture
@@ -31,6 +32,7 @@ const UserProfilePicture = ({currentUser, lockedPicture, onUpdateProfilePicture}
 
     return (
         <EditProfilePicture
+            onError={onError}
             onUpdateProfilePicture={onUpdateProfilePicture}
             user={currentUser}
         />

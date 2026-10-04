@@ -18,6 +18,7 @@ import type UserModel from '@typings/database/models/servers/user';
 
 type ChangeProfilePictureProps = {
     user: UserModel;
+    onError: (error: unknown) => void;
     onUpdateProfilePicture: (info: { localPath?: string; isRemoved?: boolean }) => void;
 };
 
@@ -42,7 +43,7 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
     };
 });
 
-const EditProfilePicture = ({user, onUpdateProfilePicture}: ChangeProfilePictureProps) => {
+const EditProfilePicture = ({user, onUpdateProfilePicture, onError}: ChangeProfilePictureProps) => {
     const serverUrl = useServerUrl();
     const theme = useTheme();
 
@@ -108,6 +109,7 @@ const EditProfilePicture = ({user, onUpdateProfilePicture}: ChangeProfilePicture
                 style={styles.camera}
             >
                 <ProfileImagePicker
+                    onError={onError}
                     onRemoveProfileImage={handleProfileImage}
                     uploadFiles={handleProfileImage}
                     user={user}

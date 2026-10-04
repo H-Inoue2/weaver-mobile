@@ -320,6 +320,7 @@ const EditProfile = ({
                 <UserProfilePicture
                     currentUser={currentUser}
                     lockedPicture={lockedPicture}
+                    onError={resetScreen}
                     onUpdateProfilePicture={onUpdateProfilePicture}
                 />
             </View>

@@ -17,15 +17,31 @@ import type {IntlShape} from 'react-intl';
 
 type PermissionSource = 'camera' | 'storage' | 'photo_android' | 'photo_ios' | 'photo';
 
+// Weaver K-39 ビルド12: プロフィール写真モード。縮小は react-native-image-picker のネイティブ機能に任せ、
+// 結果（失敗・0件・512px超・JPEG/PNG以外）を検査して、満たさなければ元画像を使わず onError を呼ぶ。
+export type FilePickerOptions = {
+    profileImage?: boolean;
+    onError?: (error: unknown) => void;
+};
+
+const PROFILE_IMAGE_MAX_SIZE = 512;
+const PROFILE_IMAGE_QUALITY = 0.8;
+const PROFILE_IMAGE_TYPES = ['image/jpeg', 'image/png'];
+
 export default class FilePickerUtil {
     private readonly uploadFiles: (files: ExtractedFileInfo[]) => void;
     private readonly intl: IntlShape;
+    private readonly profileImage: boolean;
+    private readonly onError?: (error: unknown) => void;
 
     constructor(
         intl: IntlShape,
-        uploadFiles: (files: ExtractedFileInfo[]) => void) {
+        uploadFiles: (files: ExtractedFileInfo[]) => void,
+        options?: FilePickerOptions) {
         this.intl = intl;
         this.uploadFiles = uploadFiles;
+        this.profileImage = Boolean(options?.profileImage);
+        this.onError = options?.onError;
     }
 
     private getPermissionMessages = (source: PermissionSource) => {
@@ -102,6 +118,57 @@ export default class FilePickerUtil {
         if (out.length > 0) {
             await dismissBottomSheet();
             this.uploadFiles(out);
+        }
+    };
+
+    // プロフィール写真: 検査に通らない理由（通れば undefined）。寸法が取れない場合は通す（Android未確認のため）。
+    private getProfileImageProblem = (files: Asset[]) => {
+        if (files.length === 0) {
+            return 'no assets';
+        }
+
+        for (const file of files) {
+            const type = (file.type || '').toLowerCase();
+            if (!PROFILE_IMAGE_TYPES.includes(type)) {
+                return `unsupported type: ${type}`;
+            }
+            if ((typeof file.width === 'number' && file.width > PROFILE_IMAGE_MAX_SIZE) || (typeof file.height === 'number' && file.height > PROFILE_IMAGE_MAX_SIZE)) {
+                return `not resized: ${file.width}x${file.height}`;
+            }
+        }
+
+        return undefined;
+    };
+
+    private failProfileImage = async (reason: string) => {
+        logWarning('profile image rejected', reason);
+        await dismissBottomSheet();
+        this.onError?.(new Error(this.intl.formatMessage({
+            id: 'mobile.profile_image.resize_failed',
+            defaultMessage: 'The photo could not be prepared. Please choose another photo (JPEG or PNG) and try again.',
+        })));
+    };
+
+    private handleProfileImageResponse = async (response: ImagePickerResponse) => {
+        if (response.didCancel) {
+            return;
+        }
+
+        if (response.errorCode || response.errorMessage) {
+            await this.failProfileImage(`picker error: ${response.errorCode || ''} ${response.errorMessage || ''}`);
+            return;
+        }
+
+        try {
+            const files = await this.getFilesFromResponse(response);
+            const problem = this.getProfileImageProblem(files);
+            if (problem) {
+                await this.failProfileImage(problem);
+                return;
+            }
+            await this.prepareFileUpload(files);
+        } catch (error) {
+            await this.failProfileImage(`exception: ${String(error)}`);
         }
     };
 
@@ -221,6 +288,15 @@ export default class FilePickerUtil {
 
     attachFileFromCamera = async (customOptions?: CameraOptions) => {
         let options = customOptions;
+        if (!options && this.profileImage) {
+            options = {
+                maxWidth: PROFILE_IMAGE_MAX_SIZE,
+                maxHeight: PROFILE_IMAGE_MAX_SIZE,
+                quality: PROFILE_IMAGE_QUALITY,
+                mediaType: 'photo',
+                saveToPhotos: false,
+            };
+        }
         if (!options) {
             options = {
                 quality: 0.8,
@@ -235,6 +311,11 @@ export default class FilePickerUtil {
         if (hasCameraPermission) {
             launchCamera(options, async (response: ImagePickerResponse) => {
                 StatusBar.setHidden(false);
+
+                if (this.profileImage) {
+                    await this.handleProfileImageResponse(response);
+                    return;
+                }
 
                 if (response.errorCode || response.didCancel) {
                     return;
@@ -295,7 +376,14 @@ export default class FilePickerUtil {
     };
 
     attachFileFromPhotoGallery = async (selectionLimit = 1) => {
-        const options: ImageLibraryOptions = {
+        const options: ImageLibraryOptions = this.profileImage ? {
+            maxWidth: PROFILE_IMAGE_MAX_SIZE,
+            maxHeight: PROFILE_IMAGE_MAX_SIZE,
+            quality: PROFILE_IMAGE_QUALITY,
+            mediaType: 'photo',
+            includeBase64: false,
+            selectionLimit: 1,
+        } : {
             quality: 1,
             mediaType: 'mixed',
             includeBase64: false,
@@ -306,6 +394,11 @@ export default class FilePickerUtil {
         if (hasPermission) {
             launchImageLibrary(options, async (response: ImagePickerResponse) => {
                 StatusBar.setHidden(false);
+                if (this.profileImage) {
+                    await this.handleProfileImageResponse(response);
+                    return;
+                }
+
                 if (response.errorMessage || response.didCancel) {
                     logWarning('Attach failed', response.errorMessage || (response.didCancel ? 'cancelled' : ''));
                     return;
