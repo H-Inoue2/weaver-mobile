@@ -47,10 +47,16 @@ describe('messages.ts: 表の整合', () => {
             expect(k.startsWith('weaver.')).toBe(true);
         }
     });
-    it('UT-14 必須20キー（19キー＋weaver.settings.language）が en・ja の両方にあり、キー集合はちょうどその20個', () => {
-        expect(KEYS).toHaveLength(20);
+    it('UT-14 必須21キー（20キー＋weaver.profile_image.resize_failed）が en・ja の両方にあり、キー集合はちょうどその21個', () => {
+        expect(KEYS).toHaveLength(21);
         expect(Object.keys(en).sort()).toEqual([...KEYS].sort());
         expect(Object.keys(ja).sort()).toEqual([...KEYS].sort());
+    });
+    it('UT-PR-15 プロフィール写真の失敗文言（ja・en）が期待どおり。ja は日本語、en は日本語を含まない', () => {
+        const key = 'weaver.profile_image.resize_failed';
+        expect(get('ja', key)).toBe('写真を設定できませんでした。別の写真を選ぶか、もう一度お試しください。');
+        expect(get('en', key)).toBe(EN[key]);
+        expect(get('ja', key)).toBe(JA[key]);
     });
     it('UT-31 旧キー（intro・who.*・process.*・data.body）が存在しない', () => {
         const all = [...Object.keys(ja), ...Object.keys(en)];

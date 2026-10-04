@@ -183,4 +183,15 @@ describe('プロフィール写真の縮小（FilePickerUtil profileImage モー
             expect(uploadFiles).not.toHaveBeenCalled();
         });
     });
+
+    describe('失敗文言（言語別）', () => {
+        it.each([['ja', '写真を設定できませんでした。別の写真を選ぶか、もう一度お試しください。'], ['en', 'The photo could not be prepared. Please choose another photo (JPEG or PNG) and try again.']])('UT-PR-16 失敗時に onError へ渡る Error の文言（%s）が weaver 文言表の値と一致する', async (locale, message) => {
+            const localized = new FilePickerUtil(getIntlShape(locale), uploadFiles, {profileImage: true, onError} as any);
+            respondGallery({assets: [jpeg(4000, 3000)]});
+            await localized.attachFileFromPhotoGallery();
+            await TestHelper.wait(50);
+            expect(onError).toHaveBeenCalledTimes(1);
+            expect((onError.mock.calls[0][0] as Error).message).toBe(message);
+        });
+    });
 });

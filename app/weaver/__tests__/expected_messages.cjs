@@ -25,6 +25,7 @@ const KEYS = [
     'weaver.account_deletion.link.privacy',
     'weaver.notification_notice.body_no_docs',
     'weaver.settings.language',
+    'weaver.profile_image.resize_failed',
 ];
 
 const JA = {
@@ -68,6 +69,7 @@ const JA = {
     'weaver.account_deletion.link.detail': '詳細',
     'weaver.account_deletion.link.privacy': 'プライバシーポリシー',
     'weaver.settings.language': '言語',
+    'weaver.profile_image.resize_failed': '写真を設定できませんでした。別の写真を選ぶか、もう一度お試しください。',
     'weaver.notification_notice.body_no_docs': '通知が届きませんか？まず、すべての端末にテスト通知を送って、正常に届くか確認してください。解決しない場合は、管理者にお問い合わせください。',
 };
 
@@ -106,6 +108,7 @@ const EN = {
     'weaver.account_deletion.link.detail': 'Details',
     'weaver.account_deletion.link.privacy': 'Privacy policy',
     'weaver.settings.language': 'Language',
+    'weaver.profile_image.resize_failed': 'The photo could not be prepared. Please choose another photo (JPEG or PNG) and try again.',
     'weaver.notification_notice.body_no_docs': 'Not receiving notifications? Start by sending a test notification to all your devices to check if they’re working as expected. If issues persist, please contact your administrator.',
 };
 
