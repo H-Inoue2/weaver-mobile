@@ -861,6 +861,7 @@
   "mobile.edit_post.save": "保存",
   "mobile.edit_post.title": "メッセージ編集中",
   "mobile.edit_profile.remove_profile_photo": "写真を削除する",
+  "mobile.edit_profile.upload_failed": "プロフィール写真をアップロードできませんでした。別の写真を選ぶか、もう一度お試しください。",
   "mobile.ephemeralMode.dataErased.action": "再接続",
   "mobile.ephemeralMode.dataErased.body": "お使いの組織のセキュリティポリシーにより、長時間オフラインだったサーバー <b>{displayName}</b> のキャッシュデータが消去されました。再接続してデータを復元してください。",
   "mobile.ephemeralMode.dataErased.error": "サーバーに接続できませんでした。接続を確認して、もう一度お試しください。",

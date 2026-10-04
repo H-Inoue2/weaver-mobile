@@ -792,6 +792,7 @@ export const uploadUserProfileImage = async (serverUrl: string, localPath: strin
             if (response && (response.ok === false || (typeof response.code === 'number' && response.code >= 400))) {
                 throw new ClientError(client.apiClient.baseUrl, {
                     message: 'Unable to upload the profile image',
+                    intl: {id: 'mobile.edit_profile.upload_failed', defaultMessage: 'Unable to upload the profile image'},
                     url: endpoint,
                     status_code: response.code,
                 });

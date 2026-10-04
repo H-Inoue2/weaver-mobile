@@ -54,6 +54,7 @@ const CODE_ONLY_KEYS: Record<string, string[]> = {
     'scheduled_post.channel_indicator.thread': ['count'],
     'apps.error.network.no_server': [],
     'mobile.edit_profile.remove_profile_photo': [],
+    'mobile.edit_profile.upload_failed': [],
 };
 
 // 和文を含まなくてよい値（OK・製品名・記号のみ・上流で意図的に英語のまま）。ここに無い値は和文を含むこと。

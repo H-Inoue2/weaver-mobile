@@ -9,6 +9,7 @@ import {Alert} from 'react-native';
 import Share from 'react-native-share';
 
 import {pathWithPrefix} from '@utils/file';
+import {getIntlShape} from '@utils/general';
 
 import {APP_NAME, SUPPORT_URL} from '../weaver/constants';
 
@@ -36,7 +37,7 @@ export const shareLogs = async (metadata: ReportAProblemMetadata, siteName: stri
             message: buildEmailBody(metadata),
         });
     } catch (e: unknown) {
-        Alert.alert('Error', `${e}`);
+        Alert.alert(getIntlShape().formatMessage({id: 'mobile.link.error.title', defaultMessage: 'Error'}), `${e}`);
     }
 };
 
@@ -52,7 +53,7 @@ export const emailLogs = async (metadata: ReportAProblemMetadata, siteName: stri
             message: buildEmailBody(metadata),
         });
     } catch (e: unknown) {
-        Alert.alert('Error', `${e}`);
+        Alert.alert(getIntlShape().formatMessage({id: 'mobile.link.error.title', defaultMessage: 'Error'}), `${e}`);
     }
 };
 
