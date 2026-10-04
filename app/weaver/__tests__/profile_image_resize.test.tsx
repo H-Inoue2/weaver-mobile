@@ -131,6 +131,22 @@ describe('プロフィール写真の縮小（FilePickerUtil profileImage モー
             expect(onError).not.toHaveBeenCalled();
         });
 
+        it.each([['image/jpg'], ['image/jpeg'], ['image/png'], ['IMAGE/JPG']])('UT-PR-17 縮小済み（512x384）の type=%s は通る（iOSのピッカーは image/jpg を返す。実機ビルド12で判明）', async (type) => {
+            respondGallery({assets: [{uri: 'file:///tmp/ABCD-1234.jpg', type, fileName: 'ABCD-1234.jpg', width: 512, height: 384}]});
+            await util.attachFileFromPhotoGallery();
+            await TestHelper.wait(50);
+            expect(uploadFiles).toHaveBeenCalledTimes(1);
+            expect(onError).not.toHaveBeenCalled();
+        });
+
+        it.each([['image/gif'], ['image/webp'], ['image/heic'], ['']])('UT-PR-18 type=%p は縮小済みでも拒否する（onError・アップロードなし）', async (type) => {
+            respondCamera({assets: [{uri: 'file:///tmp/x.gif', type, fileName: 'x', width: 100, height: 100}]});
+            await util.attachFileFromCamera();
+            await TestHelper.wait(50);
+            expect(uploadFiles).not.toHaveBeenCalled();
+            expect(onError).toHaveBeenCalledTimes(1);
+        });
+
         it.each([['image/heic'], ['image/heif']])('UT-PR-08 変換されていない %s は、元画像を使わず onError を呼び、アップロードしない', async (type) => {
             respondGallery({assets: [{uri: 'file://p.heic', type, fileName: 'p.heic', width: 512, height: 384}]});
             await util.attachFileFromPhotoGallery();
