@@ -29,6 +29,7 @@ export const WEAVER_MESSAGES = {
         'weaver.account_deletion.link.privacy': 'Privacy policy',
         'weaver.notification_notice.body_no_docs': 'Not receiving notifications? Start by sending a test notification to all your devices to check if they’re working as expected. If issues persist, please contact your administrator.',
         'weaver.settings.language': 'Language',
+        'weaver.profile_image.resize_failed': 'The photo could not be prepared. Please choose another photo (JPEG or PNG) and try again.',
     },
     ja: {
         'weaver.sso_login': 'Weaverでログイン',
@@ -51,6 +52,7 @@ export const WEAVER_MESSAGES = {
         'weaver.account_deletion.link.privacy': 'プライバシーポリシー',
         'weaver.notification_notice.body_no_docs': '通知が届きませんか？まず、すべての端末にテスト通知を送って、正常に届くか確認してください。解決しない場合は、管理者にお問い合わせください。',
         'weaver.settings.language': '言語',
+        'weaver.profile_image.resize_failed': '写真を設定できませんでした。別の写真を選ぶか、もう一度お試しください。',
     },
 };
 

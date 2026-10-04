@@ -13,6 +13,8 @@ import {extractFileInfo, lookupMimeType} from '@utils/file';
 import {logWarning} from '@utils/log';
 import {safeDecodeURIComponent} from '@utils/url';
 
+import {getWeaverMessage} from '../../../weaver/messages';
+
 import type {IntlShape} from 'react-intl';
 
 type PermissionSource = 'camera' | 'storage' | 'photo_android' | 'photo_ios' | 'photo';
@@ -143,10 +145,7 @@ export default class FilePickerUtil {
     private failProfileImage = async (reason: string) => {
         logWarning('profile image rejected', reason);
         await dismissBottomSheet();
-        this.onError?.(new Error(this.intl.formatMessage({
-            id: 'mobile.profile_image.resize_failed',
-            defaultMessage: 'The photo could not be prepared. Please choose another photo (JPEG or PNG) and try again.',
-        })));
+        this.onError?.(new Error(getWeaverMessage(this.intl.locale, 'weaver.profile_image.resize_failed')));
     };
 
     private handleProfileImageResponse = async (response: ImagePickerResponse) => {
