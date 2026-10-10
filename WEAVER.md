@@ -75,7 +75,7 @@ Mattermost Mobile（Apache License 2.0）を基に、Weaver 向けに変更し�
 | `app/screens/settings/notifications/send_test_notification_notice/send_test_notification_notice.tsx` | `mattermost.com`（ユーザーID等を付けて遷移）へのリンクを除去 |
 | `app/constants/report_a_problem.ts` | 「問題を報告」の既定の宛先を Weaver のサポートに |
 | `app/utils/share_logs.ts` | 既定のサポートリンク・メール件名を Weaver に |
-| `ios/Mattermost/Info.plist` | 許可ダイアログの文言5つのアプリ名を Weaver に |
+| `ios/Mattermost/Info.plist` | 許可ダイアログの文言5つのアプリ名を Weaver に。`UIBackgroundModes` から `audio`・`voip` を削除（App Store審査 Guideline 2.5.4 の指摘。`fetch`・`remote-notification` は残す。K-39 ビルド18） |
 | `ios/Mattermost.xcodeproj/project.pbxproj` | `TARGETED_DEVICE_FAMILY` を iPhone 専用（`1`）に |
 | `assets/base/images/icon.png` | アプリ内通知の既定アイコンを Weaver に |
 | `eslint.config.mjs` | 末尾に Weaver 用ヘッダーの上書きブロックを追加 |
