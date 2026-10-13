@@ -33,10 +33,36 @@ function androidHome(missing: string[] = [], bt = ['36.0.0']) {
     }
     return home;
 }
+// 欠落シナリオの隔離（CI の Linux ランナーには実 JDK があり、PATH・JAVA_HOME 上の本物の keytool を tools が見つけてしまう）。
+// 非 Windows では、必要最小限のコマンドだけを symlink した専用 PATH を作り、JAVA_HOME 系を外す。keytool はスタブ（または無し）だけにする。
+const ESSENTIAL = ['bash', 'sh', 'perl', 'env', 'ls', 'cat', 'sed', 'grep', 'awk', 'find', 'sort', 'head', 'tail', 'dirname', 'basename', 'mkdir', 'rm', 'cp', 'mv', 'readlink', 'uname', 'tr', 'wc', 'cut', 'printf', 'test', 'true', 'false', 'date', 'id', 'stat', 'sleep', 'mktemp', 'chmod', 'touch', 'xargs', 'tee', 'expr'];
+function isolatedPath(): string | null {
+    if (process.platform === 'win32') {
+        return null;
+    }
+    const dir = s.tmp('k79-isobin-');
+    for (const n of ESSENTIAL) {
+        const r = require('child_process').spawnSync('sh', ['-c', `command -v ${n}`], {encoding: 'utf8'});
+        const p = (r.stdout || '').trim();
+        if (p && p.startsWith('/')) {
+            try {
+                fs.symlinkSync(p, path.join(dir, n));
+            } catch (e) {
+                // 既にある場合は無視
+            }
+        }
+    }
+    return dir;
+}
 function toolsRun(o: {missing?: string[]; bt?: string[]} = {}) {
     const st = s.makeStubs(o.missing?.includes('keytool') ? [] : ['keytool']);
     const home = androidHome(o.missing, o.bt);
-    return s.aab(['tools', '--ndk-version', NDK], {stubDir: st.dir, env: {ANDROID_HOME: s.posix(home), ANDROID_SDK_ROOT: s.posix(home)}});
+    const iso = isolatedPath();
+    const env: Record<string, string> = {ANDROID_HOME: s.posix(home), ANDROID_SDK_ROOT: s.posix(home)};
+    if (iso) {
+        env.PATH = iso;
+    }
+    return s.aab(['tools', '--ndk-version', NDK], {stubDir: st.dir, env, unsetEnv: ['JAVA_HOME', 'JAVA_HOME_8_X64', 'JAVA_HOME_11_X64', 'JAVA_HOME_17_X64', 'JAVA_HOME_21_X64', 'JDK_HOME']});
 }
 
 describe('tools（UT-208〜211）', () => {
