@@ -1,0 +1,51 @@
+name: weaver-prepare-js
+description: >-
+  Weaver Android AAB workflow (K-79): shared JS preparation for the verify and build jobs.
+  Mirrors scripts/postinstall.sh (without the iOS pod step) and the Android part of the upstream prepare-android-build action.
+  No inputs. npm lifecycle scripts are not run (--ignore-scripts); the needed post-install steps are listed explicitly below.
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+        cache: npm
+
+    # S1-S3: npm install (same as the iOS workflow). S4 switches this to the lockfile-exact command
+    # once package-lock.json is committed cleanly (K-79 detailed design 4.4).
+    - name: Install npm packages
+      shell: bash
+      run: npm install --ignore-scripts
+
+    - name: Copy icon font
+      shell: bash
+      run: |
+        mkdir -p assets/fonts android/app/src/main/assets/fonts
+        cp node_modules/@mattermost/compass-icons/font/compass-icons.ttf assets/fonts/
+        cp node_modules/@mattermost/compass-icons/font/compass-icons.ttf android/app/src/main/assets/fonts/
+
+    - name: Apply patches
+      shell: bash
+      run: npx patch-package
+
+    - name: Generate assets
+      shell: bash
+      run: node scripts/generate-assets.js
+
+    - name: Generate glyph map
+      shell: bash
+      run: node scripts/generate-compass-glyph-map.mjs
+
+    # res/raw/* is git-ignored; postinstall.sh copies the sounds there. Without this the sounds are missing from the AAB.
+    - name: Copy sound assets
+      shell: bash
+      run: |
+        mkdir -p android/app/src/main/res/raw
+        cp assets/sounds/* android/app/src/main/res/raw/
+
+    # Same as upstream prepare-android-build. Remove if the measurement run shows it is unnecessary.
+    - name: Jetify Android libraries
+      shell: bash
+      run: ./node_modules/.bin/jetify

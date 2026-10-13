@@ -1,3 +1,4 @@
+// Modified for Weaver (K-79): namespace is kept at the source package com.mattermost.rnbeta (applicationId stays com.metarchitect.Weaver). See WEAVER.md.
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
@@ -102,7 +103,7 @@ android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdkVersion rootProject.ext.compileSdkVersion
-    namespace "com.metarchitect.Weaver"
+    namespace "com.mattermost.rnbeta"
 
     lintOptions {
         checkReleaseBuilds false

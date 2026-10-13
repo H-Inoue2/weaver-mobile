@@ -1,0 +1,238 @@
+name: Weaver Android AAB
+
+# K-79/R0 stage S1 skeleton (detailed design 1.4): two jobs only (verify, build), no guards, no version injection,
+# no signing. S2 replaces this file with the full five-job version (verify, preflight, build, inspect, sign).
+# The "measurement" steps in the build job are inline on purpose; S2 moves them into scripts and deletes them here.
+#
+# S1 caveats (recorded as design findings):
+#  - The Android unit tests are committed ahead of the scripts they test, so the jest step of verify is red until S2.
+#    For that reason build does not need verify at S1 (S2 adds the needs). The jest/tsc numbers are reference values only.
+#  - for_submission and upload_to_play are accepted but unused until S2.
+
+on:
+  workflow_dispatch:
+    inputs:
+      clear_cache:
+        description: 'Build without the Gradle cache'
+        type: boolean
+        default: false
+      for_submission:
+        description: 'Submission build (unused until S2)'
+        type: boolean
+        default: false
+      upload_to_play:
+        description: 'Upload to Google Play (unused until S2)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weaver-android-aab-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BUNDLETOOL_VERSION: "1.18.3"
+  BUNDLETOOL_SHA256: a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29
+  NODE_OPTIONS: --max_old_space_size=8192
+
+jobs:
+  verify:
+    name: Verify (types and tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The tests read the base and upstream commits with git show; the default checkout is shallow and does not have them.
+      # A failed fetch fails the job (fail-closed: the tests must not be skipped).
+      - name: Fetch reference commits
+        run: git fetch --no-tags --depth=1 origin 01fbf86bb8ed42e66ecf1e0f33485ebd4b9c37af 0c0d6c48ecd1432a80ecdbe69aafa394af49d03c
+
+      - name: Prepare JS
+        uses: ./.github/actions/weaver-prepare-js
+
+      # Records the result instead of failing; the comparison with the baseline is a later step (S2).
+      - name: Type check
+        shell: bash {0}
+        run: |
+          npx tsc --noEmit > "$RUNNER_TEMP/tsc.log" 2>&1
+          echo "$?" > "$RUNNER_TEMP/tsc.exit"
+          echo "tsc exit code: $(cat "$RUNNER_TEMP/tsc.exit")"
+          echo "tsc error lines: $(grep -c 'error TS' "$RUNNER_TEMP/tsc.log" || true)"
+          exit 0
+
+      - name: Jest
+        run: npx jest app/weaver --ci --json --outputFile="$RUNNER_TEMP/jest.json"
+
+      # S1 only: keep the counts even when jest fails (reference values for the later baseline).
+      - name: Upload reference counts (S1)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weaver-android-verify-reference-${{ github.run_number }}-a${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/tsc.log
+            ${{ runner.temp }}/tsc.exit
+            ${{ runner.temp }}/jest.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  build:
+    name: Build AAB (unsigned)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout (sparse)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          sparse-checkout: |
+            /*
+            !/ios
+          sparse-checkout-cone-mode: false
+
+      - name: Prepare JS
+        uses: ./.github/actions/weaver-prepare-js
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # S1 inline measurement (replaced by weaver_android_aab.sh tools in S2): which SDK parts the runner image has,
+      # and install the missing ones (NDK / build-tools / platform) while timing it.
+      - name: Measure Android SDK parts (S1 inline)
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/weaver-measure"
+          OUT="$RUNNER_TEMP/weaver-measure/tools.txt"
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          echo "ImageVersion=${ImageVersion:-unknown}" | tee "$OUT"
+          echo "ANDROID_HOME=$SDK" | tee -a "$OUT"
+          missing=""
+          [ -d "$SDK/build-tools/36.0.0" ] || missing="$missing build-tools;36.0.0"
+          [ -d "$SDK/ndk/27.1.12297006" ] || missing="$missing ndk;27.1.12297006"
+          [ -d "$SDK/platforms/android-36" ] || missing="$missing platforms;android-36"
+          echo "missing before install:${missing:- none}" | tee -a "$OUT"
+          if [ -n "$missing" ]; then
+            SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+            [ -x "$SDKM" ] || SDKM="$(command -v sdkmanager)"
+            start=$(date +%s)
+            set +o pipefail
+            yes | "$SDKM" --licenses > /dev/null || true
+            set -o pipefail
+            # shellcheck disable=SC2086
+            "$SDKM" --install $missing
+            echo "sdkmanager install seconds: $(( $(date +%s) - start ))" | tee -a "$OUT"
+          fi
+          echo "build-tools installed: $(ls "$SDK/build-tools" | tr '\n' ' ')" | tee -a "$OUT"
+          echo "ndk installed: $(ls "$SDK/ndk" | tr '\n' ' ')" | tee -a "$OUT"
+          echo "platforms installed: $(ls "$SDK/platforms" | tr '\n' ' ')" | tee -a "$OUT"
+
+      - name: Restore Gradle cache
+        if: ${{ !inputs.clear_cache }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-android-${{ runner.os }}-${{ hashFiles('android/buildscript-gradle.lockfile', 'android/settings-gradle.lockfile', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-android-${{ runner.os }}-
+
+      - name: Build AAB (bundleUnsigned)
+        run: |
+          set -eu
+          start=$(date +%s)
+          cd android
+          ./gradlew bundleUnsigned -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64 --stacktrace
+          mkdir -p "$RUNNER_TEMP/weaver-measure"
+          echo "gradle bundleUnsigned seconds: $(( $(date +%s) - start ))" | tee -a "$RUNNER_TEMP/weaver-measure/timing.txt"
+
+      # S1 inline measurement of the produced AAB (detailed design 4.8). Every command is recorded; a failing
+      # measurement is written as MEASURE-FAILED and does not hide the build result.
+      - name: Measure AAB (S1 inline)
+        run: |
+          set -u
+          M="$RUNNER_TEMP/weaver-measure"
+          mkdir -p "$M"
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          BT="$SDK/build-tools/36.0.0"
+          OBJDUMP="$SDK/ndk/27.1.12297006/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-objdump"
+          AAB="android/app/build/outputs/bundle/unsigned/app-unsigned.aab"
+          m() { "$@" || echo "MEASURE-FAILED rc=$?: $*"; }
+
+          find android/app/build/outputs/bundle -type f | sort > "$M/aab-paths.txt"
+          { echo "size_bytes: $(stat -c %s "$AAB")"; } > "$M/aab-info.txt"
+          { echo "--- keytool -printcert -jarfile (an unsigned AAB must print no signer)"; m keytool -printcert -jarfile "$AAB"; } >> "$M/aab-info.txt" 2>&1
+          { echo "--- top-level entries"; unzip -l "$AAB" | awk '{print $4}' | grep -E '^(base/lib|base/manifest|META-INF|BUNDLE-METADATA)/' | cut -d/ -f1-3 | sort -u; } >> "$M/aab-info.txt" 2>&1
+          unzip -l "$AAB" | awk '{print $4}' | grep -E '^base/lib/[^/]+/' | cut -d/ -f3 | sort -u > "$M/abis.txt"
+
+          curl --fail --location --silent --show-error -o "$RUNNER_TEMP/bundletool.jar" "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"
+          echo "${BUNDLETOOL_SHA256}  $RUNNER_TEMP/bundletool.jar" | sha256sum -c -
+          m java -jar "$RUNNER_TEMP/bundletool.jar" dump manifest --bundle="$AAB" > "$M/merged-manifest.xml" 2>&1
+
+          # universal APK signed with a throwaway key (measurement only; never uploaded)
+          KS="$RUNNER_TEMP/measure.jks"
+          keytool -genkeypair -keystore "$KS" -storepass measurepass -keypass measurepass -alias measure -keyalg RSA -keysize 2048 -validity 1 -dname "CN=measure" > /dev/null 2>&1
+          m java -jar "$RUNNER_TEMP/bundletool.jar" build-apks --bundle="$AAB" --output="$RUNNER_TEMP/measure.apks" --mode=universal --ks="$KS" --ks-pass=pass:measurepass --ks-key-alias=measure --key-pass=pass:measurepass --overwrite > "$M/build-apks.txt" 2>&1
+          mkdir -p "$RUNNER_TEMP/measure-apk"
+          unzip -o -q "$RUNNER_TEMP/measure.apks" universal.apk -d "$RUNNER_TEMP/measure-apk"
+          APK="$RUNNER_TEMP/measure-apk/universal.apk"
+          m "$BT/aapt2" dump xmltree --file AndroidManifest.xml "$APK" > "$M/xmltree-manifest.txt" 2>&1
+          m "$BT/aapt2" dump resources "$APK" > "$M/resources.txt" 2>&1
+          NSC_PATH="$(grep -o 'res/[^ ]*' "$M/resources.txt" | grep -m1 'network_security_config' || true)"
+          echo "nsc path in apk: ${NSC_PATH:-NOT-FOUND}" > "$M/xmltree-nsc.txt"
+          if [ -n "$NSC_PATH" ]; then m "$BT/aapt2" dump xmltree --file "$NSC_PATH" "$APK" >> "$M/xmltree-nsc.txt" 2>&1; fi
+          m "$BT/zipalign" -c -P 16 -v 4 "$APK" > "$M/zipalign-16k.txt" 2>&1
+          # ELF segment alignment of the arm64 and x86_64 libraries (LOAD align must be 2**14 or more)
+          rm -rf "$RUNNER_TEMP/measure-elf"; mkdir -p "$RUNNER_TEMP/measure-elf"
+          unzip -o -q "$APK" 'lib/*' -d "$RUNNER_TEMP/measure-elf"
+          : > "$M/elf-align.txt"
+          for so in "$RUNNER_TEMP"/measure-elf/lib/arm64-v8a/*.so "$RUNNER_TEMP"/measure-elf/lib/x86_64/*.so; do
+            [ -e "$so" ] || continue
+            echo "$so: $("$OBJDUMP" -p "$so" 2>&1 | awk '$1=="LOAD"{for(i=1;i<=NF;i++) if($i=="align") print $(i+1)}' | sort -u | tr '\n' ' ')" >> "$M/elf-align.txt"
+          done
+          echo "measurement files:"; ls -l "$M"
+          {
+            echo "### S1 measurement"
+            echo '```'; cat "$M/tools.txt" "$M/timing.txt" "$M/aab-info.txt" 2>/dev/null; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload measurement files (S1)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weaver-android-measure-${{ github.run_number }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/weaver-measure
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Hash and upload unchecked AAB
+        run: |
+          set -eu
+          SRC="android/app/build/outputs/bundle/unsigned/app-unsigned.aab"
+          if [ "$(find android/app/build/outputs/bundle -type f -name '*.aab' | wc -l)" != "1" ] || [ ! -f "$SRC" ]; then
+            echo "expected exactly one AAB at $SRC; found:"
+            find android/app/build/outputs/bundle -type f
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/unchecked"
+          cp "$SRC" "$RUNNER_TEMP/unchecked/app-unsigned.aab"
+          (cd "$RUNNER_TEMP/unchecked" && sha256sum app-unsigned.aab > aab.sha256 && cat aab.sha256)
+
+      - name: Upload unchecked AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: weaver-android-unchecked-${{ github.run_number }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/unchecked
+          retention-days: 1
+          if-no-files-found: error
