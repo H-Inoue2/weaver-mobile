@@ -205,14 +205,14 @@ const factsS2: Fact[] = [
     ['.gitattributes に3行', attrOk],
     ['smoke-trial が有る', () => s.exists(s.SMOKE)],
     ['同等性確認のワークフローが全ブランチに0件', equivAbsent],
-    ['マニフェスト・NSC・app_name は基点のまま', () => !manifestS3() && !nscS3()],
-];
-const factsS3: Fact[] = [
-    ...factsS2.filter(([n]) => !n.includes('PENDING') && !n.includes('基点のまま')),
+    // v1.6: ソース変更はS2の列（S3は実測値の確定だけ）
     ['マニフェストが変更済み（resizeable=false・cleartext=false）', manifestS3],
     ['NSC L3 が false', nscS3],
     ['app_name が Weaver', appNameOk],
     ['WEAVER.md に Android の記述', weaverMd],
+];
+const factsS3: Fact[] = [
+    ...factsS2.filter(([n]) => !n.includes('PENDING')),
     ['baseline に PENDING が0件', baselineNoPending],
     ['許可リストの（b）に B-PENDING が無い', () => s.exists(s.ALLOWLIST_REL) && !allowPending()],
     ['目印が無い', () => !markExists()],
@@ -228,7 +228,7 @@ const FACTS: Record<string, Fact[]> = {S1: baseFactsS1, S2: factsS2, S3: factsS3
 // 次の段階で初めて成立する事実（現在の段階では成立してはならない）
 const NEXT: Record<string, Fact[]> = {
     S1: [['ガード等4本が有る', scriptsAll], ['許可リストが有る', () => s.exists(s.ALLOWLIST_REL)], ['.gitignore に *.p8', () => !gitignoreNone()], ['smoke-trial が有る', () => s.exists(s.SMOKE)]],
-    S2: [['マニフェストが変更済み', manifestS3], ['NSC L3 が false', nscS3], ['WEAVER.md に Android の記述', weaverMd], ['baseline に PENDING が0件', baselineNoPending]],
+    S2: [['baseline に PENDING が0件', baselineNoPending], ['許可リストの（b）に B-PENDING が無い', () => s.exists(s.ALLOWLIST_REL) && !allowPending()]],
     S3: [['目印が有る', markExists], ['composite が npm ci', () => compositeText().includes('npm ci')]],
     S4: [],
 };
@@ -241,7 +241,7 @@ describe('段階ゲート（詳細設計 §1.4。段階値 .github/android_stage
         expect({stage: st, notHolding: bad, aheadOfStage: ahead}).toEqual({stage: st, notHolding: [], aheadOfStage: []});
     });
 
-    it('UT-330 段階別の pre の失敗集合: S2 は注入前 AG1・AG6・AG7・AG9／注入後 AG1・AG6・AG9、S3 は注入後に失敗0（AG5 は警告のみ）。S1 はガードが無い。S4 は対象外（署名ありは UT-188 が担う）', () => {
+    it('UT-330 段階別の pre の失敗集合: S2・S3 とも、注入前は AG7 のみ失敗／B8 の注入後は全ガード緑（警告のみ。v1.6）。S1 はガードが無い。S4 は対象外（署名ありは UT-188 が担う）', () => {
         const st = s.stage();
         if (st === 'S1') {
             expect(scriptsNone()).toBe(true);
@@ -255,7 +255,8 @@ describe('段階ゲート（詳細設計 §1.4。段階値 .github/android_stage
         if (st === 'S2') {
             const r1 = pre(s.ROOT);
             expect(r1.rc).toBe(1);
-            expect(s.failedLabels(r1)).toEqual(['AG1', 'AG6', 'AG7', 'AG9']);
+            // v1.6: S2 後はソース変更済み。注入なしで失敗するのは AG7（versionCode 817）だけ
+            expect(s.failedLabels(r1)).toEqual(['AG7']);
             expect(s.warnLines(r1, 'AG2').join('\n')).toMatch(/dummy/i);
         }
         const copy = s.copyRepoSubset(['android/app/build.gradle', 'android/app/google-services.json', 'android/app/src', 'assets/base/config.json', 'app/weaver/constants.ts', s.ALLOWLIST_REL, s.HASHES_REL, s.BASELINE_REL]);
@@ -263,13 +264,10 @@ describe('段階ゲート（詳細設計 §1.4。段階値 .github/android_stage
         expect(s.inject(['--gradle', s.posix(gradle), '--run-number', '1', '--app-version', '2.45.0']).rc).toBe(0);
         s.gitInitCommit(copy);
         const r2 = pre(copy);
-        if (st === 'S2') {
-            expect(s.failedLabels(r2)).toEqual(['AG1', 'AG6', 'AG9']);
-        } else {
-            expect(s.failedLabels(r2)).toEqual([]);
-            expect(r2.rc).toBe(0);
-            expect(r2.out).toContain('ANDROID GUARD pre PASSED (confirm, unsigned)');
-        }
+        // S2 以降: B8 の注入の後は全ガード緑（AG2・AG5 は警告のみ）
+        expect(s.failedLabels(r2)).toEqual([]);
+        expect(r2.rc).toBe(0);
+        expect(r2.out).toContain('ANDROID GUARD pre PASSED (confirm, unsigned)');
     });
 });
 
