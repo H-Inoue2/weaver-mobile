@@ -89,7 +89,7 @@ jobs:
           tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP/actionlint" actionlint
           "$RUNNER_TEMP/actionlint/actionlint" .github/workflows/weaver-android-aab.yml .github/workflows/weaver-android-smoke-trial.yml
 
-      - name: Tracked key files check
+      - name: Tracked secrets check
         run: bash .github/scripts/weaver_android_guard.sh ag10 --root .
 
   preflight:
@@ -382,7 +382,6 @@ jobs:
         run: |
           bash .github/scripts/weaver_android_aab.sh extract --aab "$AAB" --bundletool-jar "$WEAVER_BUNDLETOOL_JAR" --signing unsigned --out "$RUNNER_TEMP/weaver-aab-pre"
           bash .github/scripts/weaver_android_guard.sh post --dir "$RUNNER_TEMP/weaver-aab-pre" --mode "$MODE" --signing unsigned --run-number "$RUN_NUMBER" --app-version "$APP_VERSION" --base "$VERSION_CODE_BASE" --cleartext forbid
-          bash .github/scripts/weaver_android_aab.sh facts --dir "$RUNNER_TEMP/weaver-aab-pre" --run "$RUN_NUMBER" --out "$RUNNER_TEMP/facts/facts.txt"
 
       - name: 16KB alignment
         run: bash .github/scripts/weaver_android_16k_check.sh "$RUNNER_TEMP/weaver-aab-pre/universal.apk"
@@ -405,15 +404,6 @@ jobs:
             exit 1
           fi
           echo "sha256=$ACTUAL" >> "$GITHUB_OUTPUT"
-
-      - name: Facts artifact
-        if: success()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: weaver-android-facts-${{ github.run_number }}-a${{ github.run_attempt }}
-          path: ${{ runner.temp }}/facts/facts.txt
-          retention-days: 1
-          if-no-files-found: error
 
   sign:
     name: Sign AAB
@@ -453,7 +443,7 @@ jobs:
           esac
           echo "signing=$MODE_OUT" >> "$GITHUB_OUTPUT"
 
-      - name: Download unchecked AAB and facts
+      - name: Download unchecked AAB
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: weaver-android-unchecked-${{ github.run_number }}-a${{ github.run_attempt }}
@@ -487,11 +477,11 @@ jobs:
         if: steps.mode.outputs.signing == 'signed'
         id: sign-aab
         env:
+          AAB: ${{ runner.temp }}/in/app-unsigned.aab
           WEAVER_KEYSTORE_FILE: ${{ env.WEAVER_KEYSTORE_PATH }}
           WEAVER_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           WEAVER_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          AAB="${AAB:-$RUNNER_TEMP/in/app-unsigned.aab}"
           "$JAVA_HOME/bin/jarsigner" -keystore "$WEAVER_KEYSTORE_FILE" -storepass:env WEAVER_KEYSTORE_PASSWORD -sigalg SHA256withRSA -digestalg SHA-256 "$AAB" "$WEAVER_KEY_ALIAS"
 
       - name: Delete keystore and confirm
@@ -543,11 +533,11 @@ jobs:
           set -eu
           VERSION_CODE=$((VERSION_CODE_BASE + RUN_NUMBER))
           if [ "$SIGNING" = "signed" ]; then KIND="$MODE"; else KIND="unsigned-verification-only"; fi
-          mkdir -p "$RUNNER_TEMP/out" "$RUNNER_TEMP/facts-in"
-          printf 'version=%s\nversionCode=%s\nrun=%s\n' "$APP_VERSION" "$VERSION_CODE" "$RUN_NUMBER" > "$RUNNER_TEMP/facts-in/facts.txt"
+          mkdir -p "$RUNNER_TEMP/out"
+          bash .github/scripts/weaver_android_aab.sh facts --version "$APP_VERSION" --version-code "$VERSION_CODE" --run "$RUN_NUMBER" --out "$RUNNER_TEMP/facts.txt"
           CERT_ARGS=()
           if [ "$SIGNING" = "signed" ]; then CERT_ARGS=(--cert "$RUNNER_TEMP/cert.txt"); fi
-          bash .github/scripts/weaver_android_aab.sh summary --facts "$RUNNER_TEMP/facts-in/facts.txt" "${CERT_ARGS[@]}" --signing "$SIGNING" --kind "$KIND" --run "$RUN_NUMBER" --expect-version "$APP_VERSION" --expect-version-code "$VERSION_CODE" --out "$RUNNER_TEMP/out/weaver-android-summary-$RUN_NUMBER.txt"
+          bash .github/scripts/weaver_android_aab.sh summary --facts "$RUNNER_TEMP/facts.txt" "${CERT_ARGS[@]}" --signing "$SIGNING" --kind "$KIND" --run "$RUN_NUMBER" --expect-version "$APP_VERSION" --expect-version-code "$VERSION_CODE" --out "$RUNNER_TEMP/out/weaver-android-summary-$RUN_NUMBER.txt"
           cat "$RUNNER_TEMP/out/weaver-android-summary-$RUN_NUMBER.txt" >> "$GITHUB_STEP_SUMMARY"
           cp "$AAB" "$RUNNER_TEMP/out/weaver-android-$APP_VERSION-$VERSION_CODE-$KIND.aab"
 

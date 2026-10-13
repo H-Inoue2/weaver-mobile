@@ -8,7 +8,7 @@
 #                                                      dex-classes.txt・abis.txt・resources.txt）を取り出す。AABは展開・実行しない
 #   verify-input  --aab F --sha256-file F --max-bytes N 入力AABの検証（通常ファイル・sha256・サイズ・署名ブロック0件・名前の安全）
 #   verify-hash   --aab F --expect-sha256 HEX           通常ファイルであることと sha256 の一致だけを確かめる（ZIPを開かない）
-#   facts         --dir DIR --run N --out FILE          要約用の事実（固定3キー）を書く。書式が合わなければ書かない
+#   facts         --version V --version-code C --run N --out FILE   要約用の事実（固定3キー）を、sign が自分の期待値から作る。書式が合わなければ書かない（AABは読まない）
 #   summary       --facts F [--cert F] --signing S --kind K --run N --expect-version V --expect-version-code C --out FILE
 #   終了コード: 0＝成功 / 1＝検証・取り出しの失敗 / 2＝使い方の誤り
 #
@@ -37,7 +37,7 @@ my %ALLOWED = (
     'extract'      => [qw(aab bundletool-jar signing out)],
     'verify-input' => [qw(aab sha256-file max-bytes)],
     'verify-hash'  => [qw(aab expect-sha256)],
-    'facts'        => [qw(dir run out)],
+    'facts'        => [qw(version version-code run out)],
     'summary'      => [qw(facts cert signing kind run expect-version expect-version-code out)],
 );
 my @KINDS = qw(confirm submission unsigned-verification-only);
@@ -55,13 +55,21 @@ usage_die("unknown subcommand: $SUB") unless grep { $_ eq $SUB } @SUBCOMMANDS;
 my %O;
 {
     my %ok = map { $_ => 1 } @{$ALLOWED{$SUB}};
+    my $last;
     while (@ARGV) {
         my $a = shift @ARGV;
+        if ($a !~ /\A--/ && defined $last) {
+            # 値に改行を含む引数が、起動の仕方（Windows の子プロセス起動など）で改行の位置で分割されることがある。
+            # 位置引数はどのサブコマンドにも無いので、直前のオプションの値の続きとして扱い、値の検査（書式違反＝rc=1）に回す
+            $O{$last} .= "\n$a";
+            next;
+        }
         usage_die("unknown argument: $a") unless $a =~ /\A--([A-Za-z0-9-]+)\z/;
         my $n = $1;
         usage_die("unknown option for $SUB: $a") unless $ok{$n};
         usage_die("option needs a value: --$n") unless @ARGV;
         $O{$n} = shift @ARGV;
+        $last = $n;
     }
 }
 sub need { my ($n) = @_; usage_die("missing required option: --$n") unless exists $O{$n}; return $O{$n}; }
@@ -411,24 +419,16 @@ sub facts_problems {
 }
 sub cmd_facts {
     $TAG = 'FACTS';
-    my $dir = need('dir');
+    my $vn = need('version');
+    my $vc = need('version-code');
     my $run = need('run');
     my $out = need('out');
-    my $m = slurp_bin("$dir/manifest.xml");
-    if (!defined $m) {
-        fail("manifest.xml not found in $dir");
-    } else {
-        $m =~ s/\r//g;
-        my $attrs = ($m =~ /<manifest\b([^>]*)>/s) ? $1 : '';
-        my ($vn) = $attrs =~ /android:versionName\s*=\s*"([^"]*)"/;
-        my ($vc) = $attrs =~ /android:versionCode\s*=\s*"([^"]*)"/;
-        fail($_) for facts_problems($vn, $vc, $run);
-        if (!@FAILS) {
-            my $text = "version=$vn\nversionCode=$vc\nrun=$run\n";
-            (my $d = $out) =~ s{/[^/]*\z}{};
-            make_path($d) if $d ne '' && $d ne $out && !-d $d;
-            write_file($out, $text) or fail("cannot write $out");
-        }
+    fail($_) for facts_problems($vn, $vc, $run);
+    if (!@FAILS) {
+        my $text = "version=$vn\nversionCode=$vc\nrun=$run\n";
+        (my $d = $out) =~ s{/[^/]*\z}{};
+        make_path($d) if $d ne '' && $d ne $out && !-d $d;
+        write_file($out, $text) or fail("cannot write $out");
     }
     finish_fail() if @FAILS;
     print "ANDROID AAB facts PASSED\n";

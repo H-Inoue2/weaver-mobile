@@ -502,7 +502,7 @@ describe('呼び出し・取得の細目（UT-324・335〜337・344）', () => {
         expect(JSON.stringify(doc().jobs.build)).not.toMatch(/guard\.sh ag10/);
     });
 
-    it('UT-344 G7・G9 の細目: jarsigner の引数1つだけ（-keystore "$WEAVER_KEYSTORE_FILE" -storepass:env WEAVER_KEYSTORE_PASSWORD -sigalg SHA256withRSA -digestalg SHA-256 "$AAB" "$WEAVER_KEY_ALIAS"）・env のキー3つ・-keypass／-tsa／-storepass <値> は0件・AAB は各ステップの env', () => {
+    it('UT-344 G7・G9 の細目: jarsigner の引数1つだけ（-keystore "$WEAVER_KEYSTORE_FILE" -storepass:env WEAVER_KEYSTORE_PASSWORD -sigalg SHA256withRSA -digestalg SHA-256 "$AAB" "$WEAVER_KEY_ALIAS"）・env のキー4つ（AAB＋署名用3変数）・-keypass／-tsa／-storepass <値> は0件・AAB は各ステップの env', () => {
         const d = doc();
         const g7 = st('sign', 'G7');
         const body = w.runOf(g7);
@@ -515,7 +515,8 @@ describe('呼び出し・取得の細目（UT-324・335〜337・344）', () => {
         expect(verifyLines).toHaveLength(1);
         expect(w.runOf(st('sign', 'G9')).split('\n').filter((l: string) => /\s-verify\b/.test(l) && !/^\s*(echo|printf|#)/.test(l))).toHaveLength(1);
         expect(w.runOf(st('sign', 'G9'))).not.toMatch(/-keystore|-storepass|-sigalg/);
-        expect(Object.keys(g7.env).sort()).toEqual(['WEAVER_KEYSTORE_FILE', 'WEAVER_KEYSTORE_PASSWORD', 'WEAVER_KEY_ALIAS']);
+        // §4.3.4: G7 が読む環境変数は AAB・WEAVER_KEYSTORE_FILE・WEAVER_KEYSTORE_PASSWORD・WEAVER_KEY_ALIAS の4つ（AAB は各ステップの env。D-63）。署名用の3変数は G7 と P5 だけ
+        expect(Object.keys(g7.env).sort()).toEqual(['AAB', 'WEAVER_KEYSTORE_FILE', 'WEAVER_KEYSTORE_PASSWORD', 'WEAVER_KEY_ALIAS']);
         expect(g7.env.WEAVER_KEYSTORE_FILE).toBe('${{ env.WEAVER_KEYSTORE_PATH }}');
         expect(body).not.toMatch(/-keypass|-tsa|-storepass\s+[^:]/);
         expect(body).not.toContain('weaver_android_guard');

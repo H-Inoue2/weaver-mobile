@@ -369,7 +369,7 @@ describe('UT-358 sign に解析ツールとアプリ実行手段が無い・実�
             expect(['mode', 'ag3']).toContain(m[1]);
         }
         for (const m of runs.matchAll(/weaver_android_aab\.sh\s+(\w[\w-]*)/g)) {
-            expect(['verify-hash', 'summary']).toContain(m[1]);
+            expect(['verify-hash', 'facts', 'summary']).toContain(m[1]); // facts は G11 が自分の期待値から作る（v1.5）
         }
     });
 });
@@ -632,7 +632,6 @@ const READS: Record<string, string[]> = {
     'inspect/Pre-sign checks': ['AAB', 'MODE', 'RUN_NUMBER', 'APP_VERSION', 'VERSION_CODE_BASE', 'WEAVER_FIREBASE_PROJECT_ID', 'WEAVER_EXPECTED_CERT_SHA256', 'WEAVER_BUNDLETOOL_JAR', 'WEAVER_KEYTOOL', 'WEAVER_AAPT2', 'WEAVER_ZIPALIGN', 'WEAVER_DEXDUMP', 'WEAVER_OBJDUMP'],
     'inspect/16KB alignment': ['WEAVER_ZIPALIGN', 'WEAVER_OBJDUMP'],
     'inspect/Output checked sha256': ['AAB'],
-    'inspect/Facts artifact': ['RUN_NUMBER'],
     'sign/Verify AAB hash': ['AAB', 'CHECKED_SHA256'],
     'sign/Sign AAB (jarsigner)': ['AAB', 'WEAVER_KEYSTORE_FILE', 'WEAVER_KEYSTORE_PASSWORD', 'WEAVER_KEY_ALIAS'],
     'sign/Delete keystore and confirm': ['WEAVER_KEYSTORE_PATH'],
