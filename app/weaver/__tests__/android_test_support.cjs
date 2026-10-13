@@ -12,7 +12,20 @@ const {spawnSync} = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..', '..', '..');
 // Windows では PATH を最小化した試験（UT-018・235）でも bash を見つけられるよう、Git の bash.exe を絶対パスで解決する（D-S2-13）
-const BASH = process.env.WEAVER_TEST_BASH || (() => {
+// WEAVER_TEST_BASH は MSYS 形式（/c/Program Files/…）でも Windows 形式でもよい。Git の bin/bash.exe（ランチャー）は PATH の先頭に mingw64 等を足して
+// スタブ（PATH 先頭に置く mv・git・unzip ほか）より本物を先に見つけてしまうため、同じ Git の usr/bin/bash.exe に読み替える（原因調査 2026-10-14）。
+const normalizeBash = (p) => {
+    if (!p || process.platform !== 'win32') {
+        return p;
+    }
+    let w = p.replace(/^\/([a-zA-Z])\//, '$1:/').split('\\').join('/');
+    const m = /^(.*\/Git)\/(bin|usr\/bin)\/bash(\.exe)?$/i.exec(w);
+    if (m && fs.existsSync(m[1] + '/usr/bin/bash.exe')) {
+        w = m[1] + '/usr/bin/bash.exe';
+    }
+    return w;
+};
+const BASH = normalizeBash(process.env.WEAVER_TEST_BASH) || (() => {
     // PATH を最小化した試験（UT-018・235）でも bash を見つけられるよう、今の PATH から bash の絶対パスを解決しておく（D-S2-13）
     if (process.platform !== 'win32') {
         return 'bash';
