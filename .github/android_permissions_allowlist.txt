@@ -1,0 +1,34 @@
+# Weaver Android: AG1 permission allowlist (K-79 detailed design 5.8.1).
+# One entry per line: <class> <permission> [maxSdk=<n>]
+#   A = allowed (declared by the app; must match the source manifest exactly)
+#   B = allowed, added by libraries at manifest merge time (measured; see the pending line below)
+#   C = forbidden
+# {APPLICATION_ID} is replaced with --application-id. Lines starting with # are comments.
+# The number of A entries is not fixed in the guard; this file is the source of truth.
+#
+# --- A: kept as upstream (same as the iOS usage-description policy) ---
+A android.permission.INTERNET
+A android.permission.ACCESS_NETWORK_STATE
+A android.permission.CAMERA
+A android.permission.POST_NOTIFICATIONS
+A android.permission.VIBRATE
+A android.permission.RECEIVE_BOOT_COMPLETED
+A android.permission.FOREGROUND_SERVICE
+A android.permission.FOREGROUND_SERVICE_DATA_SYNC
+A android.permission.WRITE_EXTERNAL_STORAGE maxSdk=32
+A android.permission.READ_EXTERNAL_STORAGE maxSdk=32
+A android.permission.ACCESS_FINE_LOCATION
+A android.permission.ACCESS_WIFI_STATE
+A android.permission.RECORD_AUDIO
+A android.permission.MODIFY_AUDIO_SETTINGS
+A android.permission.BLUETOOTH maxSdk=30
+A android.permission.BLUETOOTH_ADMIN maxSdk=30
+A android.permission.BLUETOOTH_CONNECT
+A android.permission.READ_MEDIA_AUDIO
+#
+# --- B: library permissions at merge time. Not fixed yet; the measurement run fixes them (stage S3) ---
+B-PENDING
+#
+# --- C: forbidden ---
+C android.permission.FOREGROUND_SERVICE_MICROPHONE
+C android.permission.FOREGROUND_SERVICE_SPECIAL_USE

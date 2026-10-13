@@ -39,6 +39,16 @@ GitHub Actions の **Weaver iOS Build** を手動起動する（`workflow_dispat
 | iOS deployment target | 18.0 |
 | ワークスペース | `ios/Mattermost.xcworkspace` / scheme `Mattermost` |
 
+### Androidのビルド
+
+GitHub Actions の **Weaver Android AAB**（`.github/workflows/weaver-android-aab.yml`）を手動起動する（`workflow_dispatch`。K-79）。入力は `clear_cache`・`for_submission`・`upload_to_play` の3つだけ。
+
+- **署名の有無は入力にしない**。リポジトリの状態だけで決める: `.github/android_firebase_real`（目印）が無ければ**署名なし検証ビルド**（成果物の kind は `unsigned-verification-only`。Play にはアップロードできない）。目印があり、実の `google-services.json` とアップロード鍵・Secrets（GitHub の Environment `android-upload-key`）がそろっているときだけ署名する。
+- 5つのジョブ: `verify`（型・テスト・actionlint）→ `preflight`（鍵の事前確認）→ `build`（版の注入・ガード・`bundleUnsigned`）→ `inspect`（署名前AABの全検査）→ `sign`（検査したAABと同一のsha256にだけ `jarsigner` で署名）。署名用の資格情報が見えるのは `preflight` と `sign` だけで、第三者のコードが動く `build` には渡さない。
+- ガード・検査は `.github/scripts/weaver_android_guard.sh`（権限・google-services.json・署名・namespace・ブランド・平文通信・版・rnbeta・端末種別・秘密の追跡・ABI・SDK）、`weaver_android_aab.sh`、`weaver_android_16k_check.sh`（16KBページ整列）、`weaver_android_inject_version.sh`。データは `.github/android_permissions_allowlist.txt`・`android_baseline.json`・`android_upstream_asset_hashes.txt`。
+- 失敗したら**全ジョブを再実行**（Re-run all jobs）する。失敗したジョブだけの再実行は、成果物の名前（`run_attempt` を含む）が合わず失敗する（設計どおり）。
+- 上流の更新を取り込むときは、下の「変更したファイル一覧」の Android の行（`build.gradle`・`AndroidManifest.xml`・`network_security_config.xml`・`strings.xml`・`google-services.json`）を見直す。
+
 ## カスタマイズ予定（Phase 5）
 
 | 項目 | 変更先 | 設定場所 |
@@ -82,5 +92,14 @@ Mattermost Mobile（Apache License 2.0）を基に、Weaver 向けに変更し�
 | `.github/workflows/weaver-ios-testflight.yml` | ビルド時ガードと、確認用／提出用ビルドの区別（`for_submission`）を追加 |
 | `NOTICE.txt` | 冒頭に Weaver 版の変更の旨を追記 |
 | `.gitattributes` | `.github/scripts/*.sh` を LF に固定 |
+| `android/app/build.gradle` | `namespace` を上流のソースの `package` に合わせて `com.mattermost.rnbeta` に戻した（`applicationId` は `com.metarchitect.Weaver`）。先頭に変更表示（K-79） |
+| `android/app/google-services.json` | Mattermost 社のものを**ダミー**（`DUMMY` で始まる値）に置換。実キーへの差し替えは、目印 `.github/android_firebase_real` と同じコミットで行う（JSON はコメントを書けないため本表で変更表示に代える） |
+| `android/app/src/main/AndroidManifest.xml` | `FOREGROUND_SERVICE_MICROPHONE` と、ライブラリ由来の通話用フォアグラウンドサービス2件（`MMCallsForegroundService`・`MediaProjectionService`）を削除。`resizeableActivity` と `usesCleartextTraffic` を `false` に。先頭に変更表示 |
+| `android/app/src/main/res/xml/network_security_config.xml` | 平文通信を禁止（`cleartextTrafficPermitted="false"`）。ユーザー追加CAの信頼は残す。先頭に変更表示 |
+| `android/app/src/main/res/values/strings.xml` | `app_name` を `Weaver`（`app/weaver/constants.ts` の `APP_NAME` と同じ値）に |
+| `.github/scripts/weaver_release_guard.sh` | `--shared-only`（`ios/` の検査 G1・G2 を飛ばす）を追加。既定の挙動・出力は変えていない |
+| `.gitignore` | `*.jks`・`*.p12`・`*.pem`・`*.p8`・`*service-account*.json`・`*service_account*.json`・`*-adminsdk-*.json` を追加（鍵・認証情報の誤コミット防止） |
 
-新規: `app/weaver/`（Weaver 固有の定数・文言・画像・部品・画面・テスト）、`app/routes/(modals)/(settings)/account_deletion.tsx`、`assets/base/images/Weaver_Logo*.png`・`Icon_Weaver*.png`、`.github/scripts/weaver_release_guard.sh`。
+`.gitattributes` には、Android のワークフロー・データファイルを LF に固定する行も追加した（K-79）。
+
+新規: `app/weaver/`（Weaver 固有の定数・文言・画像・部品・画面・テスト）、`app/routes/(modals)/(settings)/account_deletion.tsx`、`assets/base/images/Weaver_Logo*.png`・`Icon_Weaver*.png`、`.github/scripts/weaver_release_guard.sh`、`.github/workflows/weaver-android-aab.yml`・`weaver-android-smoke-trial.yml`、`.github/actions/weaver-prepare-js/`、`.github/scripts/weaver_android_*.sh`、`.github/android_*`。

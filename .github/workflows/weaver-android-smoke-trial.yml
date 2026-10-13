@@ -1,0 +1,99 @@
+name: Weaver Android Smoke Trial
+
+# K-79/R0 (detailed design 4.7): trial of an emulator start-up check for the AAB built by weaver-android-aab.yml.
+# This is a separate workflow on purpose: the signing job never runs the app, and this one holds no signing credentials.
+# It decides in R0 whether the check is adopted (3 consecutive successes, 10 minutes each). A failure here does not
+# affect the result of the build workflow. KVM availability on the hosted runner is unconfirmed (the check stops if absent).
+
+on:
+  workflow_dispatch:
+    inputs:
+      aab_run_id:
+        description: 'Run ID of a Weaver Android AAB run whose final artifact is checked'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  BUNDLETOOL_VERSION: "1.18.3"
+  BUNDLETOOL_SHA256: a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29
+
+jobs:
+  smoke:
+    name: Start the AAB on an emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download the final AAB artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: weaver-android-aab-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/aab
+          run-id: ${{ inputs.aab_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install bundletool
+        run: |
+          curl --fail --location --silent --show-error -o "$RUNNER_TEMP/bundletool.jar" "https://github.com/google/bundletool/releases/download/$BUNDLETOOL_VERSION/bundletool-all-$BUNDLETOOL_VERSION.jar"
+          echo "$BUNDLETOOL_SHA256  $RUNNER_TEMP/bundletool.jar" | sha256sum -c -
+
+      # A throwaway key made for this run only; it signs the verification APK and is never uploaded.
+      - name: Build a signed universal APK
+        run: |
+          set -eu
+          AAB="$(find "$RUNNER_TEMP/aab" -maxdepth 1 -name '*.aab' | head -n 1)"
+          test -n "$AAB"
+          PW="$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')"
+          export TRIAL_PW="$PW"
+          keytool -genkeypair -keystore "$RUNNER_TEMP/trial.jks" -alias trial -keyalg RSA -keysize 2048 -validity 2 -dname "CN=trial" -storepass:env TRIAL_PW -keypass:env TRIAL_PW
+          java -jar "$RUNNER_TEMP/bundletool.jar" build-apks --bundle="$AAB" --output="$RUNNER_TEMP/trial.apks" --mode=universal --ks="$RUNNER_TEMP/trial.jks" --ks-pass="pass:$PW" --ks-key-alias=trial --key-pass="pass:$PW"
+          unzip -o -q "$RUNNER_TEMP/trial.apks" universal.apk -d "$RUNNER_TEMP/apk"
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm
+
+      - name: Start the emulator
+        run: |
+          set -eu
+          SDK="${ANDROID_HOME:?ANDROID_HOME is not set}"
+          export PATH="$SDK/cmdline-tools/latest/bin:$SDK/emulator:$SDK/platform-tools:$PATH"
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager --install "system-images;android-34;google_apis;x86_64" "emulator" "platform-tools"
+          echo no | avdmanager create avd --name trial --package "system-images;android-34;google_apis;x86_64" --force
+          nohup emulator -avd trial -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect > "$RUNNER_TEMP/emulator.log" 2>&1 &
+          adb wait-for-device
+          for _ in $(seq 1 90); do
+            if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; then break; fi
+            sleep 5
+          done
+          test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
+
+      - name: Install and start the app
+        run: |
+          set -eu
+          export PATH="${ANDROID_HOME:?ANDROID_HOME is not set}/platform-tools:$PATH"
+          adb install -r "$RUNNER_TEMP/apk/universal.apk"
+          adb logcat -c
+          adb shell am start -W -n com.metarchitect.Weaver/com.mattermost.rnbeta.MainActivity
+          sleep 20
+          PID="$(adb shell pidof com.metarchitect.Weaver | tr -d '\r')"
+          test -n "$PID"
+          adb logcat -d > "$RUNNER_TEMP/logcat.txt"
+          if grep -q 'FATAL EXCEPTION' "$RUNNER_TEMP/logcat.txt"; then
+            echo "FATAL EXCEPTION found in logcat"
+            exit 1
+          fi

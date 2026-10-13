@@ -2,3 +2,6 @@
 # https://help.github.com/articles/dealing-with-line-endings/
 *.bat text eol=crlf
 .github/scripts/*.sh text eol=lf
+.github/android_* text eol=lf
+.github/workflows/weaver-android-*.yml text eol=lf
+.github/actions/weaver-prepare-js/action.yml text eol=lf

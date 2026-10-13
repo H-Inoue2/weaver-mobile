@@ -5,6 +5,11 @@
 #   ROOT の既定は "."（リポジトリの直下）。手元やテストでは、フィクスチャのフォルダを渡す。
 #   終了コード: 0＝合格 / 1＝違反あり（全件を列挙してから終了） / 2＝使い方の誤り（不明なオプション・ROOT が無い）
 #
+# K-79 追加: weaver_release_guard.sh [--release] [--shared-only] [ROOT]
+#   --shared-only は G1・G2（ios/ 配下の検査）を実行しない。Android のビルドが共用する G3〜G5 だけを使うため。
+#   合格表示は `RELEASE GUARD PASSED (basic, shared-only)` / `(--release, shared-only)`。失敗時の末尾行の mode にも shared-only が付く。
+#   オプション無しの挙動・出力は変えない。
+#
 # 検査（G1〜G5）:
 #   G1 常に: ios/Mattermost.xcodeproj/project.pbxproj の TARGETED_DEVICE_FAMILY（条件付きキーを含む全件）が 1 で、件数が6以上
 #   G2 常に: ios/Mattermost/Info.plist の NS*UsageDescription の値に $(PRODUCT_NAME) と Mattermost（大文字小文字不問）が無い
@@ -19,17 +24,21 @@
 set -u
 
 RELEASE=0
+SHARED=0
 ROOT=""
 ROOT_SET=0
 
 usage() {
-    echo "usage: weaver_release_guard.sh [--release] [ROOT]" >&2
+    echo "usage: weaver_release_guard.sh [--release] [--shared-only] [ROOT]" >&2
 }
 
 for ARG in "$@"; do
     case "$ARG" in
         --release)
             RELEASE=1
+            ;;
+        --shared-only)
+            SHARED=1
             ;;
         -*)
             echo "weaver_release_guard: unknown option: $ARG" >&2
@@ -64,7 +73,7 @@ else
     MODE="basic"
 fi
 
-perl - "$MODE" "$ROOT" <<'PERL_GUARD'
+perl - "$MODE" "$ROOT" "$SHARED" <<'PERL_GUARD'
 use strict;
 use warnings;
 use utf8;
@@ -72,9 +81,10 @@ use File::Find;
 
 binmode(STDOUT, ':encoding(UTF-8)');
 
-my ($mode, $root) = @ARGV;
+my ($mode, $root, $shared) = @ARGV;
 my $release = ($mode eq 'release') ? 1 : 0;
 my @violations;
+my $mode_label = $mode . ($shared ? ', shared-only' : '');
 
 sub slurp {
     my ($path) = @_;
@@ -87,15 +97,18 @@ sub slurp {
     return $text;
 }
 
+my $check = "";    # --shared-only のときだけ違反行に検査名（G3〜G5）を付ける（既定の出力は不変）
 sub violation {
     my ($where, $message) = @_;
-    push @violations, "FAIL: $where: $message";
+    push @violations, ($shared && $check ne "") ? "FAIL: $check: $where: $message" : "FAIL: $where: $message";
 }
 
 # ---- G1: TARGETED_DEVICE_FAMILY（iPhone 専用）----
 my $pbx = 'ios/Mattermost.xcodeproj/project.pbxproj';
-my $pbx_text = slurp("$root/$pbx");
-if (!defined $pbx_text) {
+my $pbx_text = $shared ? '' : slurp("$root/$pbx");
+if ($shared) {
+    # --shared-only: ios/ は読まない
+} elsif (!defined $pbx_text) {
     violation($pbx, 'file not found (TARGETED_DEVICE_FAMILY cannot be checked)');
 } else {
     my $count = 0;
@@ -114,8 +127,10 @@ if (!defined $pbx_text) {
 
 # ---- G2: 許可ダイアログの文言 ----
 my $plist = 'ios/Mattermost/Info.plist';
-my $plist_text = slurp("$root/$plist");
-if (!defined $plist_text) {
+my $plist_text = $shared ? '' : slurp("$root/$plist");
+if ($shared) {
+    # --shared-only: ios/ は読まない
+} elsif (!defined $plist_text) {
     violation($plist, 'file not found (NS*UsageDescription cannot be checked)');
 } else {
     while ($plist_text =~ m{<key>(NS\w*UsageDescription)</key>\s*<string>(.*?)</string>}gs) {
@@ -130,6 +145,7 @@ if (!defined $plist_text) {
 }
 
 # ---- G3: プレースホルダ残り（--release のみ）----
+$check = "G3";
 if ($release) {
     my $dir = "$root/app/weaver";
     my @files;
@@ -156,6 +172,7 @@ if ($release) {
 }
 
 # ---- G5: constants.ts の書式（常に）と G4: 値の検査（--release のみ）----
+$check = "G5";
 my $constants = 'app/weaver/constants.ts';
 my @names = qw(APP_NAME PRIVACY_POLICY_URL TERMS_OF_SERVICE_URL SUPPORT_URL REPORT_A_PROBLEM_EMAIL NOTIFICATION_HELP_URL ACCOUNT_DELETION_URL);
 my %value;
@@ -189,6 +206,7 @@ sub check_value {
     }
 }
 
+$check = "G4";
 if ($release) {
     check_value('PRIVACY_POLICY_URL', 'url', 1);
     check_value('SUPPORT_URL', 'url', 1);
@@ -200,11 +218,15 @@ if ($release) {
 
 if (@violations) {
     print "$_\n" for @violations;
-    print 'RELEASE GUARD FAILED (' . scalar(@violations) . " violation(s), mode: $mode)\n";
+    print 'RELEASE GUARD FAILED (' . scalar(@violations) . " violation(s), mode: $mode_label)\n";
     exit 1;
 }
 
-print $release ? "RELEASE GUARD PASSED (--release)\n" : "RELEASE GUARD PASSED (basic)\n";
+if ($shared) {
+    print $release ? "RELEASE GUARD PASSED (--release, shared-only)\n" : "RELEASE GUARD PASSED (basic, shared-only)\n";
+} else {
+    print $release ? "RELEASE GUARD PASSED (--release)\n" : "RELEASE GUARD PASSED (basic)\n";
+}
 exit 0;
 PERL_GUARD
 exit $?

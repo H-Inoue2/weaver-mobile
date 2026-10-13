@@ -1,13 +1,13 @@
 name: Weaver Android AAB
 
-# K-79/R0 stage S1 skeleton (detailed design 1.4): two jobs only (verify, build), no guards, no version injection,
-# no signing. S2 replaces this file with the full five-job version (verify, preflight, build, inspect, sign).
-# The "measurement" steps in the build job are inline on purpose; S2 moves them into scripts and deletes them here.
-#
-# S1 caveats (recorded as design findings):
-#  - The Android unit tests are committed ahead of the scripts they test, so the jest step of verify is red until S2.
-#    For that reason build does not need verify at S1 (S2 adds the needs). The jest/tsc numbers are reference values only.
-#  - for_submission and upload_to_play are accepted but unused until S2.
+# K-79/R0 (detailed design 4): manual build of the Android App Bundle in five jobs.
+#   verify    types, tests, workflow lint, tracked-secret scan (full checkout)
+#   preflight early check of the upload key (the only job besides sign that can see the signing credentials)
+#   build     version injection, guards, Gradle bundleUnsigned (third-party code runs here; no signing credentials)
+#   inspect   full checks of the unsigned AAB (the tools that parse an untrusted AAB run only here; no credentials)
+#   sign      sha256 match against inspect, jarsigner, key removal, certificate check (no AAB parsing tools)
+# The signing mode is decided from the repository state only (.github/android_firebase_real), never from an input.
+# Uses of actions in preflight, inspect and sign are pinned to commit SHAs (the tag is in the comment on each line).
 
 on:
   workflow_dispatch:
@@ -17,11 +17,11 @@ on:
         type: boolean
         default: false
       for_submission:
-        description: 'Submission build (unused until S2)'
+        description: 'Submission build (signed builds only)'
         type: boolean
         default: false
       upload_to_play:
-        description: 'Upload to Google Play (unused until S2)'
+        description: 'Upload to Google Play (not implemented: manual upload only)'
         type: boolean
         default: false
 
@@ -33,13 +33,17 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  APP_VERSION: "2.45.0"
+  VERSION_CODE_BASE: "1000"
   BUNDLETOOL_VERSION: "1.18.3"
   BUNDLETOOL_SHA256: a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29
+  ACTIONLINT_VERSION: "1.7.12"
+  ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
   NODE_OPTIONS: --max_old_space_size=8192
 
 jobs:
   verify:
-    name: Verify (types and tests)
+    name: Verify (types, tests, lint)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -48,7 +52,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # The tests read the base and upstream commits with git show; the default checkout is shallow and does not have them.
+      # The tests read the base and upstream commits with git show; the default checkout is shallow and lacks them.
       # A failed fetch fails the job (fail-closed: the tests must not be skipped).
       - name: Fetch reference commits
         run: git fetch --no-tags --depth=1 origin 01fbf86bb8ed42e66ecf1e0f33485ebd4b9c37af 0c0d6c48ecd1432a80ecdbe69aafa394af49d03c
@@ -56,34 +60,108 @@ jobs:
       - name: Prepare JS
         uses: ./.github/actions/weaver-prepare-js
 
-      # Records the result instead of failing; the comparison with the baseline is a later step (S2).
+      # Records the result instead of failing; the comparison with the baseline is the Baseline check step.
       - name: Type check
         shell: bash {0}
         run: |
           npx tsc --noEmit > "$RUNNER_TEMP/tsc.log" 2>&1
           echo "$?" > "$RUNNER_TEMP/tsc.exit"
           echo "tsc exit code: $(cat "$RUNNER_TEMP/tsc.exit")"
-          echo "tsc error lines: $(grep -c 'error TS' "$RUNNER_TEMP/tsc.log" || true)"
           exit 0
 
       - name: Jest
         run: npx jest app/weaver --ci --json --outputFile="$RUNNER_TEMP/jest.json"
 
-      # S1 only: keep the counts even when jest fails (reference values for the later baseline).
-      - name: Upload reference counts (S1)
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Baseline check
+        run: |
+          MODE_NOW="$(bash .github/scripts/weaver_android_guard.sh mode)"
+          ARGS=(--tsc-log "$RUNNER_TEMP/tsc.log" --tsc-exit "$(cat "$RUNNER_TEMP/tsc.exit")" --jest-json "$RUNNER_TEMP/jest.json" --baseline .github/android_baseline.json)
+          if [ "$MODE_NOW" = "unsigned" ]; then
+            ARGS+=(--allow-pending)
+          fi
+          bash .github/scripts/weaver_android_guard.sh baseline "${ARGS[@]}"
+
+      - name: Workflow lint (actionlint)
+        run: |
+          curl --fail --location --silent --show-error -o "$RUNNER_TEMP/actionlint.tar.gz" "https://github.com/rhysd/actionlint/releases/download/v$ACTIONLINT_VERSION/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "$ACTIONLINT_SHA256  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/actionlint"
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP/actionlint" actionlint
+          "$RUNNER_TEMP/actionlint/actionlint" .github/workflows/weaver-android-aab.yml .github/workflows/weaver-android-smoke-trial.yml
+
+      - name: Tracked key files check
+        run: bash .github/scripts/weaver_android_guard.sh ag10 --root .
+
+  preflight:
+    name: Preflight (upload key check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ github.ref == 'refs/heads/main' && 'android-upload-key' || 'android-unsigned' }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout (sparse)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          name: weaver-android-verify-reference-${{ github.run_number }}-a${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/tsc.log
-            ${{ runner.temp }}/tsc.exit
-            ${{ runner.temp }}/jest.json
-          retention-days: 7
-          if-no-files-found: warn
+          ref: ${{ github.sha }}
+          sparse-checkout: |
+            /.github
+            /app/weaver/constants.ts
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Setup Java
+        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5.3.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Decide signing mode
+        id: mode
+        run: |
+          MODE_OUT="$(bash .github/scripts/weaver_android_guard.sh mode)"
+          case "$MODE_OUT" in
+            signed|unsigned) ;;
+            *)
+              echo "unexpected signing mode output"
+              exit 1
+              ;;
+          esac
+          echo "signing=$MODE_OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Restore upload keystore
+        if: steps.mode.outputs.signing == 'signed'
+        id: restore-keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          umask 077
+          tr -d '\r\n ' <<< "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/weaver-upload.jks"
+          chmod 600 "$RUNNER_TEMP/weaver-upload.jks"
+          echo "WEAVER_KEYSTORE_PATH=$RUNNER_TEMP/weaver-upload.jks" >> "$GITHUB_ENV"
+
+      - name: Check upload key (AG3 pre)
+        if: steps.mode.outputs.signing == 'signed'
+        id: guard-keystore
+        env:
+          WEAVER_KEYSTORE_FILE: ${{ env.WEAVER_KEYSTORE_PATH }}
+          WEAVER_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          WEAVER_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          MODE: ${{ inputs.for_submission && 'submission' || 'confirm' }}
+          UPLOAD_TO_PLAY: ${{ inputs.upload_to_play }}
+          WEAVER_EXPECTED_CERT_SHA256: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
+        run: bash .github/scripts/weaver_android_guard.sh ag3 --phase pre --mode "$MODE" --signing signed --upload-to-play "$UPLOAD_TO_PLAY" --keystore-check required
+
+      - name: Delete keystore
+        if: always() && steps.mode.outputs.signing == 'signed'
+        run: |
+          if [ -n "${WEAVER_KEYSTORE_PATH:-}" ] && [ -e "$WEAVER_KEYSTORE_PATH" ]; then
+            shred -u "$WEAVER_KEYSTORE_PATH" || rm -f "$WEAVER_KEYSTORE_PATH"
+          fi
 
   build:
     name: Build AAB (unsigned)
+    needs: [verify, preflight]
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
@@ -107,35 +185,26 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # S1 inline measurement (replaced by weaver_android_aab.sh tools in S2): which SDK parts the runner image has,
-      # and install the missing ones (NDK / build-tools / platform) while timing it.
-      - name: Measure Android SDK parts (S1 inline)
+      - name: Locate Android tools / Install SDK
         run: |
           set -eu
-          mkdir -p "$RUNNER_TEMP/weaver-measure"
-          OUT="$RUNNER_TEMP/weaver-measure/tools.txt"
-          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
-          echo "ImageVersion=${ImageVersion:-unknown}" | tee "$OUT"
-          echo "ANDROID_HOME=$SDK" | tee -a "$OUT"
-          missing=""
-          [ -d "$SDK/build-tools/36.0.0" ] || missing="$missing build-tools;36.0.0"
-          [ -d "$SDK/ndk/27.1.12297006" ] || missing="$missing ndk;27.1.12297006"
-          [ -d "$SDK/platforms/android-36" ] || missing="$missing platforms;android-36"
-          echo "missing before install:${missing:- none}" | tee -a "$OUT"
-          if [ -n "$missing" ]; then
+          SDK="${ANDROID_HOME:?ANDROID_HOME is not set}"
+          echo "runner image: ${ImageVersion:-unknown}"
+          NEED=""
+          [ -d "$SDK/build-tools/36.0.0" ] || NEED="$NEED build-tools;36.0.0"
+          [ -d "$SDK/ndk/27.1.12297006" ] || NEED="$NEED ndk;27.1.12297006"
+          [ -d "$SDK/platforms/android-36" ] || NEED="$NEED platforms;android-36"
+          if [ -n "$NEED" ]; then
+            echo "installing missing SDK parts:$NEED"
             SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
             [ -x "$SDKM" ] || SDKM="$(command -v sdkmanager)"
-            start=$(date +%s)
             set +o pipefail
             yes | "$SDKM" --licenses > /dev/null || true
             set -o pipefail
             # shellcheck disable=SC2086
-            "$SDKM" --install $missing
-            echo "sdkmanager install seconds: $(( $(date +%s) - start ))" | tee -a "$OUT"
+            "$SDKM" --install $NEED
           fi
-          echo "build-tools installed: $(ls "$SDK/build-tools" | tr '\n' ' ')" | tee -a "$OUT"
-          echo "ndk installed: $(ls "$SDK/ndk" | tr '\n' ' ')" | tee -a "$OUT"
-          echo "platforms installed: $(ls "$SDK/platforms" | tr '\n' ' ')" | tee -a "$OUT"
+          bash .github/scripts/weaver_android_aab.sh tools --ndk-version 27.1.12297006 >> "$GITHUB_ENV"
 
       - name: Restore Gradle cache
         if: ${{ !inputs.clear_cache }}
@@ -148,91 +217,351 @@ jobs:
           restore-keys: |
             gradle-android-${{ runner.os }}-
 
+      - name: Decide signing mode
+        id: mode
+        run: |
+          MODE_OUT="$(bash .github/scripts/weaver_android_guard.sh mode)"
+          case "$MODE_OUT" in
+            signed|unsigned) ;;
+            *)
+              echo "unexpected signing mode output"
+              exit 1
+              ;;
+          esac
+          echo "signing=$MODE_OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Inject versionCode / versionName
+        run: bash .github/scripts/weaver_android_inject_version.sh --gradle android/app/build.gradle --run-number ${{ github.run_number }} --app-version "$APP_VERSION" --base "$VERSION_CODE_BASE"
+
+      - name: Android guard (always)
+        env:
+          SIGNING: ${{ steps.mode.outputs.signing }}
+          MODE: ${{ inputs.for_submission && 'submission' || 'confirm' }}
+          UPLOAD_TO_PLAY: ${{ inputs.upload_to_play }}
+          APP_VERSION: ${{ env.APP_VERSION }}
+          VERSION_CODE_BASE: ${{ env.VERSION_CODE_BASE }}
+          RUN_NUMBER: ${{ github.run_number }}
+          WEAVER_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          WEAVER_EXPECTED_CERT_SHA256: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
+        run: bash .github/scripts/weaver_android_guard.sh pre --mode confirm --signing "$SIGNING" --upload-to-play "$UPLOAD_TO_PLAY" --run-number "$RUN_NUMBER" --app-version "$APP_VERSION" --base "$VERSION_CODE_BASE" --cleartext forbid --keystore-check skip
+
+      - name: Android guard (submission build)
+        if: inputs.for_submission
+        env:
+          SIGNING: ${{ steps.mode.outputs.signing }}
+          MODE: ${{ inputs.for_submission && 'submission' || 'confirm' }}
+          UPLOAD_TO_PLAY: ${{ inputs.upload_to_play }}
+          APP_VERSION: ${{ env.APP_VERSION }}
+          VERSION_CODE_BASE: ${{ env.VERSION_CODE_BASE }}
+          RUN_NUMBER: ${{ github.run_number }}
+          WEAVER_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          WEAVER_EXPECTED_CERT_SHA256: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
+        run: bash .github/scripts/weaver_android_guard.sh pre --mode submission --signing "$SIGNING" --upload-to-play "$UPLOAD_TO_PLAY" --run-number "$RUN_NUMBER" --app-version "$APP_VERSION" --base "$VERSION_CODE_BASE" --cleartext forbid --keystore-check skip
+
+      - name: Shared release guard (always)
+        run: bash .github/scripts/weaver_release_guard.sh --shared-only
+
+      - name: Shared release guard (submission build)
+        if: inputs.for_submission
+        run: bash .github/scripts/weaver_release_guard.sh --shared-only --release
+
       - name: Build AAB (bundleUnsigned)
         run: |
           set -eu
-          start=$(date +%s)
           cd android
           ./gradlew bundleUnsigned -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64 --stacktrace
-          mkdir -p "$RUNNER_TEMP/weaver-measure"
-          echo "gradle bundleUnsigned seconds: $(( $(date +%s) - start ))" | tee -a "$RUNNER_TEMP/weaver-measure/timing.txt"
-
-      # S1 inline measurement of the produced AAB (detailed design 4.8). Every command is recorded; a failing
-      # measurement is written as MEASURE-FAILED and does not hide the build result.
-      - name: Measure AAB (S1 inline)
-        run: |
-          set -u
-          M="$RUNNER_TEMP/weaver-measure"
-          mkdir -p "$M"
-          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
-          BT="$SDK/build-tools/36.0.0"
-          OBJDUMP="$SDK/ndk/27.1.12297006/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-objdump"
-          AAB="android/app/build/outputs/bundle/unsigned/app-unsigned.aab"
-          m() { "$@" || echo "MEASURE-FAILED rc=$?: $*"; }
-
-          find android/app/build/outputs/bundle -type f | sort > "$M/aab-paths.txt"
-          { echo "size_bytes: $(stat -c %s "$AAB")"; } > "$M/aab-info.txt"
-          { echo "--- keytool -printcert -jarfile (an unsigned AAB must print no signer)"; m keytool -printcert -jarfile "$AAB"; } >> "$M/aab-info.txt" 2>&1
-          { echo "--- top-level entries"; unzip -l "$AAB" | awk '{print $4}' | grep -E '^(base/lib|base/manifest|META-INF|BUNDLE-METADATA)/' | cut -d/ -f1-3 | sort -u; } >> "$M/aab-info.txt" 2>&1
-          unzip -l "$AAB" | awk '{print $4}' | grep -E '^base/lib/[^/]+/' | cut -d/ -f3 | sort -u > "$M/abis.txt"
-
-          curl --fail --location --silent --show-error -o "$RUNNER_TEMP/bundletool.jar" "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"
-          echo "${BUNDLETOOL_SHA256}  $RUNNER_TEMP/bundletool.jar" | sha256sum -c -
-          m java -jar "$RUNNER_TEMP/bundletool.jar" dump manifest --bundle="$AAB" > "$M/merged-manifest.xml" 2>&1
-
-          # universal APK signed with a throwaway key (measurement only; never uploaded)
-          KS="$RUNNER_TEMP/measure.jks"
-          keytool -genkeypair -keystore "$KS" -storepass measurepass -keypass measurepass -alias measure -keyalg RSA -keysize 2048 -validity 1 -dname "CN=measure" > /dev/null 2>&1
-          m java -jar "$RUNNER_TEMP/bundletool.jar" build-apks --bundle="$AAB" --output="$RUNNER_TEMP/measure.apks" --mode=universal --ks="$KS" --ks-pass=pass:measurepass --ks-key-alias=measure --key-pass=pass:measurepass --overwrite > "$M/build-apks.txt" 2>&1
-          mkdir -p "$RUNNER_TEMP/measure-apk"
-          unzip -o -q "$RUNNER_TEMP/measure.apks" universal.apk -d "$RUNNER_TEMP/measure-apk"
-          APK="$RUNNER_TEMP/measure-apk/universal.apk"
-          m "$BT/aapt2" dump xmltree --file AndroidManifest.xml "$APK" > "$M/xmltree-manifest.txt" 2>&1
-          m "$BT/aapt2" dump resources "$APK" > "$M/resources.txt" 2>&1
-          NSC_PATH="$(grep -o 'res/[^ ]*' "$M/resources.txt" | grep -m1 'network_security_config' || true)"
-          echo "nsc path in apk: ${NSC_PATH:-NOT-FOUND}" > "$M/xmltree-nsc.txt"
-          if [ -n "$NSC_PATH" ]; then m "$BT/aapt2" dump xmltree --file "$NSC_PATH" "$APK" >> "$M/xmltree-nsc.txt" 2>&1; fi
-          m "$BT/zipalign" -c -P 16 -v 4 "$APK" > "$M/zipalign-16k.txt" 2>&1
-          # ELF segment alignment of the arm64 and x86_64 libraries (LOAD align must be 2**14 or more)
-          rm -rf "$RUNNER_TEMP/measure-elf"; mkdir -p "$RUNNER_TEMP/measure-elf"
-          unzip -o -q "$APK" 'lib/*' -d "$RUNNER_TEMP/measure-elf"
-          : > "$M/elf-align.txt"
-          for so in "$RUNNER_TEMP"/measure-elf/lib/arm64-v8a/*.so "$RUNNER_TEMP"/measure-elf/lib/x86_64/*.so; do
-            [ -e "$so" ] || continue
-            echo "$so: $("$OBJDUMP" -p "$so" 2>&1 | awk '$1=="LOAD"{for(i=1;i<=NF;i++) if($i=="align") print $(i+1)}' | sort -u | tr '\n' ' ')" >> "$M/elf-align.txt"
-          done
-          echo "measurement files:"; ls -l "$M"
-          {
-            echo "### S1 measurement"
-            echo '```'; cat "$M/tools.txt" "$M/timing.txt" "$M/aab-info.txt" 2>/dev/null; echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload measurement files (S1)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: weaver-android-measure-${{ github.run_number }}-a${{ github.run_attempt }}
-          path: ${{ runner.temp }}/weaver-measure
-          retention-days: 7
-          if-no-files-found: warn
+          cd ..
+          mkdir -p "$RUNNER_TEMP/unchecked"
+          cp android/app/build/outputs/bundle/unsigned/app-unsigned.aab "$RUNNER_TEMP/unchecked/app-unsigned.aab"
+          (cd "$RUNNER_TEMP/unchecked" && sha256sum app-unsigned.aab > aab.sha256)
+          cat "$RUNNER_TEMP/unchecked/aab.sha256"
 
       - name: Hash and upload unchecked AAB
-        run: |
-          set -eu
-          SRC="android/app/build/outputs/bundle/unsigned/app-unsigned.aab"
-          if [ "$(find android/app/build/outputs/bundle -type f -name '*.aab' | wc -l)" != "1" ] || [ ! -f "$SRC" ]; then
-            echo "expected exactly one AAB at $SRC; found:"
-            find android/app/build/outputs/bundle -type f
-            exit 1
-          fi
-          mkdir -p "$RUNNER_TEMP/unchecked"
-          cp "$SRC" "$RUNNER_TEMP/unchecked/app-unsigned.aab"
-          (cd "$RUNNER_TEMP/unchecked" && sha256sum app-unsigned.aab > aab.sha256 && cat aab.sha256)
-
-      - name: Upload unchecked AAB
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: weaver-android-unchecked-${{ github.run_number }}-a${{ github.run_attempt }}
-          path: ${{ runner.temp }}/unchecked
+          path: |
+            ${{ runner.temp }}/unchecked/app-unsigned.aab
+            ${{ runner.temp }}/unchecked/aab.sha256
           retention-days: 1
+          if-no-files-found: error
+
+  inspect:
+    name: Inspect unsigned AAB
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    outputs:
+      checked_sha256: ${{ steps.checked.outputs.sha256 }}
+    steps:
+      - name: Checkout (sparse)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          sparse-checkout: |
+            /.github
+            /app/weaver/constants.ts
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Setup Java
+        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5.3.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Decide signing mode
+        id: mode
+        run: |
+          MODE_OUT="$(bash .github/scripts/weaver_android_guard.sh mode)"
+          case "$MODE_OUT" in
+            signed|unsigned) ;;
+            *)
+              echo "unexpected signing mode output"
+              exit 1
+              ;;
+          esac
+          echo "signing=$MODE_OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Locate Android tools
+        run: |
+          set -eu
+          SDK="${ANDROID_HOME:?ANDROID_HOME is not set}"
+          NEED=""
+          [ -d "$SDK/build-tools/36.0.0" ] || NEED="$NEED build-tools;36.0.0"
+          [ -d "$SDK/ndk/27.1.12297006" ] || NEED="$NEED ndk;27.1.12297006"
+          if [ -n "$NEED" ]; then
+            echo "installing missing SDK parts:$NEED"
+            SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+            [ -x "$SDKM" ] || SDKM="$(command -v sdkmanager)"
+            set +o pipefail
+            yes | "$SDKM" --licenses > /dev/null || true
+            set -o pipefail
+            # shellcheck disable=SC2086
+            "$SDKM" --install $NEED
+          fi
+          bash .github/scripts/weaver_android_aab.sh tools --ndk-version 27.1.12297006 >> "$GITHUB_ENV"
+
+      - name: Install bundletool
+        run: |
+          curl --fail --location --silent --show-error -o "$RUNNER_TEMP/bundletool.jar" "https://github.com/google/bundletool/releases/download/$BUNDLETOOL_VERSION/bundletool-all-$BUNDLETOOL_VERSION.jar"
+          echo "$BUNDLETOOL_SHA256  $RUNNER_TEMP/bundletool.jar" | sha256sum -c -
+          echo "WEAVER_BUNDLETOOL_JAR=$RUNNER_TEMP/bundletool.jar" >> "$GITHUB_ENV"
+
+      - name: Download unchecked AAB
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: weaver-android-unchecked-${{ github.run_number }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/in
+
+      - name: Verify input AAB
+        env:
+          AAB: ${{ runner.temp }}/in/app-unsigned.aab
+        run: |
+          set -eu
+          ls -1 "$RUNNER_TEMP/in"
+          if [ "$(find "$RUNNER_TEMP/in" -mindepth 1 -maxdepth 1 | wc -l)" != "2" ] || [ ! -f "$RUNNER_TEMP/in/app-unsigned.aab" ] || [ ! -f "$RUNNER_TEMP/in/aab.sha256" ]; then
+            echo "the downloaded artifact must contain exactly app-unsigned.aab and aab.sha256"
+            exit 1
+          fi
+          bash .github/scripts/weaver_android_aab.sh verify-input --aab "$AAB" --sha256-file "$RUNNER_TEMP/in/aab.sha256" --max-bytes 524288000
+
+      - name: Pre-sign checks
+        env:
+          AAB: ${{ runner.temp }}/in/app-unsigned.aab
+          SIGNING: ${{ steps.mode.outputs.signing }}
+          MODE: ${{ inputs.for_submission && 'submission' || 'confirm' }}
+          APP_VERSION: ${{ env.APP_VERSION }}
+          VERSION_CODE_BASE: ${{ env.VERSION_CODE_BASE }}
+          RUN_NUMBER: ${{ github.run_number }}
+          WEAVER_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          WEAVER_EXPECTED_CERT_SHA256: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
+        run: |
+          bash .github/scripts/weaver_android_aab.sh extract --aab "$AAB" --bundletool-jar "$WEAVER_BUNDLETOOL_JAR" --signing unsigned --out "$RUNNER_TEMP/weaver-aab-pre"
+          bash .github/scripts/weaver_android_guard.sh post --dir "$RUNNER_TEMP/weaver-aab-pre" --mode "$MODE" --signing unsigned --run-number "$RUN_NUMBER" --app-version "$APP_VERSION" --base "$VERSION_CODE_BASE" --cleartext forbid
+          bash .github/scripts/weaver_android_aab.sh facts --dir "$RUNNER_TEMP/weaver-aab-pre" --run "$RUN_NUMBER" --out "$RUNNER_TEMP/facts/facts.txt"
+
+      - name: 16KB alignment
+        run: bash .github/scripts/weaver_android_16k_check.sh "$RUNNER_TEMP/weaver-aab-pre/universal.apk"
+
+      - name: Output checked sha256
+        if: success()
+        id: checked
+        env:
+          AAB: ${{ runner.temp }}/in/app-unsigned.aab
+        run: |
+          set -eu
+          RECORDED="$(cut -d' ' -f1 "$RUNNER_TEMP/in/aab.sha256")"
+          ACTUAL="$(sha256sum "$AAB" | cut -d' ' -f1)"
+          if ! printf '%s' "$ACTUAL" | grep -Eq '^[0-9a-f]{64}$'; then
+            echo "could not compute a valid sha256 of the AAB"
+            exit 1
+          fi
+          if [ "$RECORDED" != "$ACTUAL" ]; then
+            echo "the AAB changed after it was recorded"
+            exit 1
+          fi
+          echo "sha256=$ACTUAL" >> "$GITHUB_OUTPUT"
+
+      - name: Facts artifact
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: weaver-android-facts-${{ github.run_number }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/facts/facts.txt
+          retention-days: 1
+          if-no-files-found: error
+
+  sign:
+    name: Sign AAB
+    needs: [preflight, build, inspect]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ github.ref == 'refs/heads/main' && 'android-upload-key' || 'android-unsigned' }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout (sparse)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          sparse-checkout: |
+            /.github
+            /app/weaver/constants.ts
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Setup Java
+        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5.3.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Decide signing mode
+        id: mode
+        run: |
+          MODE_OUT="$(bash .github/scripts/weaver_android_guard.sh mode)"
+          case "$MODE_OUT" in
+            signed|unsigned) ;;
+            *)
+              echo "unexpected signing mode output"
+              exit 1
+              ;;
+          esac
+          echo "signing=$MODE_OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Download unchecked AAB and facts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: weaver-android-unchecked-${{ github.run_number }}-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/in
+
+      - name: Verify AAB hash
+        env:
+          AAB: ${{ runner.temp }}/in/app-unsigned.aab
+          CHECKED_SHA256: ${{ needs.inspect.outputs.checked_sha256 }}
+        run: |
+          set -eu
+          ls -1 "$RUNNER_TEMP/in"
+          if [ "$(find "$RUNNER_TEMP/in" -mindepth 1 -maxdepth 1 | wc -l)" != "2" ]; then
+            echo "the downloaded artifact must contain exactly two files"
+            exit 1
+          fi
+          bash .github/scripts/weaver_android_aab.sh verify-hash --aab "$AAB" --expect-sha256 "$CHECKED_SHA256"
+
+      - name: Restore upload keystore
+        if: steps.mode.outputs.signing == 'signed'
+        id: restore-keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          umask 077
+          tr -d '\r\n ' <<< "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/weaver-upload.jks"
+          chmod 600 "$RUNNER_TEMP/weaver-upload.jks"
+          echo "WEAVER_KEYSTORE_PATH=$RUNNER_TEMP/weaver-upload.jks" >> "$GITHUB_ENV"
+
+      - name: Sign AAB (jarsigner)
+        if: steps.mode.outputs.signing == 'signed'
+        id: sign-aab
+        env:
+          WEAVER_KEYSTORE_FILE: ${{ env.WEAVER_KEYSTORE_PATH }}
+          WEAVER_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          WEAVER_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          AAB="${AAB:-$RUNNER_TEMP/in/app-unsigned.aab}"
+          "$JAVA_HOME/bin/jarsigner" -keystore "$WEAVER_KEYSTORE_FILE" -storepass:env WEAVER_KEYSTORE_PASSWORD -sigalg SHA256withRSA -digestalg SHA-256 "$AAB" "$WEAVER_KEY_ALIAS"
+
+      - name: Delete keystore and confirm
+        if: always() && steps.mode.outputs.signing == 'signed'
+        run: |
+          if [ -z "${WEAVER_KEYSTORE_PATH:-}" ]; then
+            echo "the keystore path is not set"
+            exit 1
+          fi
+          if [ -e "$WEAVER_KEYSTORE_PATH" ]; then
+            shred -u "$WEAVER_KEYSTORE_PATH" || rm -f "$WEAVER_KEYSTORE_PATH"
+          fi
+          if [ ! -e "$WEAVER_KEYSTORE_PATH" ]; then
+            echo "keystore file removed"
+          else
+            echo "the keystore file still exists"
+            exit 1
+          fi
+
+      - name: Verify signature
+        if: steps.mode.outputs.signing == 'signed'
+        env:
+          AAB: ${{ runner.temp }}/in/app-unsigned.aab
+        run: |
+          echo "verifying the signature (jarsigner -verify must report: jar verified.)"
+          VERIFY_OUT="$("$JAVA_HOME/bin/jarsigner" -verify "$AAB")"
+          printf '%s\n' "$VERIFY_OUT"
+          printf '%s\n' "$VERIFY_OUT" | grep -q 'jar verified\.'
+
+      - name: Check certificate
+        if: steps.mode.outputs.signing == 'signed'
+        env:
+          AAB: ${{ runner.temp }}/in/app-unsigned.aab
+          WEAVER_EXPECTED_CERT_SHA256: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
+        run: |
+          "$JAVA_HOME/bin/keytool" -printcert -jarfile "$AAB" > "$RUNNER_TEMP/cert.txt"
+          bash .github/scripts/weaver_android_guard.sh ag3 --phase post --signing signed --cert-file "$RUNNER_TEMP/cert.txt"
+
+      - name: Summary and final files
+        if: success()
+        env:
+          SIGNING: ${{ steps.mode.outputs.signing }}
+          MODE: ${{ inputs.for_submission && 'submission' || 'confirm' }}
+          APP_VERSION: ${{ env.APP_VERSION }}
+          VERSION_CODE_BASE: ${{ env.VERSION_CODE_BASE }}
+          RUN_NUMBER: ${{ github.run_number }}
+          AAB: ${{ runner.temp }}/in/app-unsigned.aab
+        run: |
+          set -eu
+          VERSION_CODE=$((VERSION_CODE_BASE + RUN_NUMBER))
+          if [ "$SIGNING" = "signed" ]; then KIND="$MODE"; else KIND="unsigned-verification-only"; fi
+          mkdir -p "$RUNNER_TEMP/out" "$RUNNER_TEMP/facts-in"
+          printf 'version=%s\nversionCode=%s\nrun=%s\n' "$APP_VERSION" "$VERSION_CODE" "$RUN_NUMBER" > "$RUNNER_TEMP/facts-in/facts.txt"
+          CERT_ARGS=()
+          if [ "$SIGNING" = "signed" ]; then CERT_ARGS=(--cert "$RUNNER_TEMP/cert.txt"); fi
+          bash .github/scripts/weaver_android_aab.sh summary --facts "$RUNNER_TEMP/facts-in/facts.txt" "${CERT_ARGS[@]}" --signing "$SIGNING" --kind "$KIND" --run "$RUN_NUMBER" --expect-version "$APP_VERSION" --expect-version-code "$VERSION_CODE" --out "$RUNNER_TEMP/out/weaver-android-summary-$RUN_NUMBER.txt"
+          cat "$RUNNER_TEMP/out/weaver-android-summary-$RUN_NUMBER.txt" >> "$GITHUB_STEP_SUMMARY"
+          cp "$AAB" "$RUNNER_TEMP/out/weaver-android-$APP_VERSION-$VERSION_CODE-$KIND.aab"
+
+      - name: Play upload (reserved. manual upload only)
+        if: inputs.upload_to_play
+        run: |
+          echo "uploading to Google Play from CI is not implemented; upload the final AAB manually"
+          exit 1
+
+      - name: Upload final artifact
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: weaver-android-aab-${{ github.run_number }}-a${{ github.run_attempt }}-${{ steps.mode.outputs.signing == 'signed' && (inputs.for_submission && 'submission' || 'confirm') || 'unsigned-verification-only' }}
+          path: ${{ runner.temp }}/out
+          retention-days: 14
           if-no-files-found: error

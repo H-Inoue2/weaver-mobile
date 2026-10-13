@@ -50,6 +50,13 @@ local.properties
 .cxx/
 *.keystore
 !debug.keystore
+*.jks
+*.p12
+*.pem
+*.p8
+*service-account*.json
+*service_account*.json
+*-adminsdk-*.json
 android/app/bin
 android/app/build
 android/build
