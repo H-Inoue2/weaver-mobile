@@ -15,11 +15,20 @@ jest.setTimeout(120000);
 afterAll(() => s.cleanup());
 
 const doc = () => w.loadReal();
+const d0 = doc;
 const J = ['verify', 'preflight', 'build', 'inspect', 'sign'];
 const st = (job: string, label: string) => w.step(doc(), job, label);
 const run = (job: string, label: string) => w.runOf(st(job, label));
 const idx = (job: string, label: string) => w.stepIndex(doc(), job, label);
 const wfText = () => s.read(s.WORKFLOW);
+// download-artifact は uses のステップで run を持てない（GitHub の制約）。ls による個数確認は、取得ステップ自身か直後の2ステップのどこかにあればよい（D-S2-03）
+const lsNear = (job: string, label: string) => {
+    const d = doc();
+    const i = idx(job, label);
+    return d.jobs[job].steps.slice(i, i + 3).some((x: any) => /\bls\b/.test(w.runOf(x)));
+};
+// AAB は各ステップの env: で渡す（job直下の env に runner コンテキストは使えない。D-K79R0-63・D-S2-04）
+const AAB_EXPR = '${{ runner.temp }}/in/app-unsigned.aab';
 const SHA_BT = 'a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29';
 
 describe('ワークフローの骨格（UT-250〜254）', () => {
@@ -111,7 +120,7 @@ describe('ステップの名前と順序（UT-255〜258）', () => {
         expect(v5).toMatch(/unsigned/);
     });
 
-    it('UT-257 4jobのステップ名と順序（P1〜P6・B1〜B14（B7欠番）・I1〜I11・G1〜G13）。bundleRelease のステップは無い', () => {
+    it('UT-257 4jobのステップ名と順序（P1〜P6・B1〜B14（B7欠番）・I1〜I10（I11は廃止。v1.5）・G1〜G13）。bundleRelease のステップは無い', () => {
         const d = doc();
         for (const k of ['preflight', 'build', 'inspect', 'sign']) {
             expect([k, d.jobs[k].steps.map((x: any) => x.name)]).toEqual([k, w.NAMES[k]]);
@@ -244,7 +253,7 @@ describe('ステップ細目（UT-259〜270）', () => {
                 expect([l, k, envKeys(l, j).includes(k)]).toEqual([l, k, true]);
             }
         }
-        const t = wfText();
+        const callsText = [st('build', 'B9'), st('build', 'B10'), st('inspect', 'I8'), st('preflight', 'P5'), st('sign', 'G10')].map(w.runOf).join('\n');
         for (const k of ['WEAVER_KEYSTORE_FILE', 'WEAVER_KEYSTORE_PASSWORD', 'WEAVER_KEY_ALIAS']) {
             const holders: string[] = [];
             for (const j of Object.keys(d.jobs)) {
@@ -257,7 +266,7 @@ describe('ステップ細目（UT-259〜270）', () => {
             expect([k, holders.sort()]).toEqual([k, ['Check upload key (AG3 pre)', 'Sign AAB (jarsigner)']]);
         }
         for (const o of ['--allowlist', '--hash-list', '--google-services', '--application-id', '--root', '--user-ca', '--expected-sha256', '--firebase-project-id']) {
-            expect([o, t.includes(o)]).toEqual([o, false]);
+            expect([o, callsText.includes(o)]).toEqual([o, false]);
         }
         expect(w.runOf(st('preflight', 'P1'))).toBe('');
         for (const j of ['preflight', 'inspect', 'sign']) {
@@ -301,23 +310,23 @@ describe('ステップ細目（UT-259〜270）', () => {
         }
     });
 
-    it('UT-268 I8・I9・I11・G11 の呼び出し（extract・16k・facts・summary）', () => {
+    it('UT-268 I8・I9・G11 の呼び出し（extract・16k・facts〔sign が自分の期待値から作る〕・summary）。I11 は廃止（v1.5）', () => {
         const i8 = w.runOf(st('inspect', 'I8'));
         for (const a of ['weaver_android_aab.sh extract', '--out "$RUNNER_TEMP/weaver-aab-pre"', '--aab "$AAB"']) {
             expect([a, i8.includes(a)]).toEqual([a, true]);
         }
         expect(w.runOf(st('inspect', 'I9'))).toContain('weaver_android_16k_check.sh "$RUNNER_TEMP/weaver-aab-pre/universal.apk"');
-        const i11 = st('inspect', 'I11');
-        expect(w.runOf(i11)).toContain('weaver_android_aab.sh facts --dir "$RUNNER_TEMP/weaver-aab-pre" --run "$RUN_NUMBER"');
-        expect(w.str(i11.env.RUN_NUMBER)).toContain('github.run_number');
+        expect(d0().jobs.inspect.steps).toHaveLength(10);
+        expect(JSON.stringify(d0().jobs.inspect)).not.toMatch(/facts/);
         const g11 = st('sign', 'G11');
         const body = w.runOf(g11);
+        expect(body).toContain('weaver_android_aab.sh facts --version "$APP_VERSION" --version-code "$VERSION_CODE" --run "$RUN_NUMBER" --out "$RUNNER_TEMP/facts.txt"');
         for (const k of ['SIGNING', 'MODE', 'APP_VERSION', 'VERSION_CODE_BASE', 'RUN_NUMBER', 'AAB']) {
             expect([k, Object.keys(g11.env).includes(k)]).toEqual([k, true]);
         }
         expect(body).toContain('VERSION_CODE=$((VERSION_CODE_BASE + RUN_NUMBER))');
         expect(body).toContain('weaver_android_aab.sh summary');
-        for (const a of ['--facts "$RUNNER_TEMP/facts-in/facts.txt"', '--run "$RUN_NUMBER"', '--expect-version "$APP_VERSION"', '--expect-version-code "$VERSION_CODE"']) {
+        for (const a of ['--facts "$RUNNER_TEMP/facts.txt"', '--run "$RUN_NUMBER"', '--expect-version "$APP_VERSION"', '--expect-version-code "$VERSION_CODE"']) {
             expect([a, body.includes(a)]).toEqual([a, true]);
         }
         expect(body).toContain('GITHUB_STEP_SUMMARY');
@@ -330,22 +339,22 @@ describe('ステップ細目（UT-259〜270）', () => {
         expect(wfText()).not.toMatch(/upload-google-play|r0adkll|fastlane supply|androidpublisher/);
     });
 
-    it('UT-270 artifact 3種類（B14・I11・G13）: 名前に run_attempt・retention-days 1/1/14・path・overwrite 0件・path は ${{ runner.temp }} 形', () => {
+    it('UT-270 artifact 2種類（B14・G13。facts artifact は廃止＝v1.5）: 名前に run_attempt・retention-days 1/14・facts artifact が0件・path・overwrite 0件・path は ${{ runner.temp }} 形', () => {
         const b14 = st('build', 'B14');
         expect(b14.if).toBe('success()');
         expect(b14.with.name).toBe('weaver-android-unchecked-${{ github.run_number }}-a${{ github.run_attempt }}');
         expect(b14.with['retention-days']).toBe(1);
         expect(b14.with['if-no-files-found']).toBe('error');
         expect(String(b14.with.path).split('\n').map((x: string) => x.trim()).filter(Boolean)).toHaveLength(2);
-        const i11 = st('inspect', 'I11');
-        expect(i11.with.name).toBe('weaver-android-facts-${{ github.run_number }}-a${{ github.run_attempt }}');
-        expect(i11.with['retention-days']).toBe(1);
+        const ups = Object.keys(doc().jobs).flatMap((j) => doc().jobs[j].steps.filter((x: any) => /upload-artifact/.test(x.uses || '')).map((x: any) => `${j}/${x.name}`));
+        expect(ups.filter((x: string) => !x.startsWith('verify/')).sort()).toEqual(['build/Hash and upload unchecked AAB', 'sign/Upload final artifact']);
+        expect(wfText()).not.toMatch(/weaver-android-facts|facts-in/);
         const g13 = st('sign', 'G13');
         expect(g13.if).toBe('success()');
         expect(String(g13.with.name)).toMatch(/^weaver-android-aab-\$\{\{ github\.run_number \}\}-a\$\{\{ github\.run_attempt \}\}-/);
         expect(g13.with['retention-days']).toBe(14);
         expect(wfText()).not.toContain('overwrite');
-        for (const x of [b14, i11, g13]) {
+        for (const x of [b14, g13]) {
             expect(String(x.with.path)).toMatch(/\$\{\{ runner\.temp \}\}\//);
             expect(String(x.with.path)).not.toMatch(/\*\.jks|\*\.keystore|google-services\.json|weaver-aab|\*\.json/);
         }
@@ -493,12 +502,19 @@ describe('呼び出し・取得の細目（UT-324・335〜337・344）', () => {
         expect(JSON.stringify(doc().jobs.build)).not.toMatch(/guard\.sh ag10/);
     });
 
-    it('UT-344 G7・G9 の細目: jarsigner の引数1つだけ（-keystore "$WEAVER_KEYSTORE_FILE" -storepass:env WEAVER_KEYSTORE_PASSWORD -sigalg SHA256withRSA -digestalg SHA-256 "$AAB" "$WEAVER_KEY_ALIAS"）・env のキー3つ・-keypass／-tsa／-storepass <値> は0件・AAB は job 直下 env', () => {
+    it('UT-344 G7・G9 の細目: jarsigner の引数1つだけ（-keystore "$WEAVER_KEYSTORE_FILE" -storepass:env WEAVER_KEYSTORE_PASSWORD -sigalg SHA256withRSA -digestalg SHA-256 "$AAB" "$WEAVER_KEY_ALIAS"）・env のキー3つ・-keypass／-tsa／-storepass <値> は0件・AAB は各ステップの env', () => {
         const d = doc();
         const g7 = st('sign', 'G7');
         const body = w.runOf(g7);
         expect(body).toContain('"$JAVA_HOME/bin/jarsigner" -keystore "$WEAVER_KEYSTORE_FILE" -storepass:env WEAVER_KEYSTORE_PASSWORD -sigalg SHA256withRSA -digestalg SHA-256 "$AAB" "$WEAVER_KEY_ALIAS"');
-        expect((body.match(/jarsigner/g) || []).length).toBe(1);
+        // v1.5: -keystore を含む行は G7 の1つだけ（ワークフロー全体でも1つ）。-verify は G9 の1行だけ
+        const keystoreLines = wfText().split('\n').filter((l: string) => /(^|\s)-keystore\s/.test(l));
+        expect(keystoreLines).toHaveLength(1);
+        expect(body.split('\n').filter((l: string) => /(^|\s)-keystore\s/.test(l))).toHaveLength(1);
+        const verifyLines = wfText().split('\n').filter((l: string) => /jarsigner[^\n]*\s-verify\b/.test(l) && !/^\s*(echo|printf|#)/.test(l));
+        expect(verifyLines).toHaveLength(1);
+        expect(w.runOf(st('sign', 'G9')).split('\n').filter((l: string) => /\s-verify\b/.test(l) && !/^\s*(echo|printf|#)/.test(l))).toHaveLength(1);
+        expect(w.runOf(st('sign', 'G9'))).not.toMatch(/-keystore|-storepass|-sigalg/);
         expect(Object.keys(g7.env).sort()).toEqual(['WEAVER_KEYSTORE_FILE', 'WEAVER_KEYSTORE_PASSWORD', 'WEAVER_KEY_ALIAS']);
         expect(g7.env.WEAVER_KEYSTORE_FILE).toBe('${{ env.WEAVER_KEYSTORE_PATH }}');
         expect(body).not.toMatch(/-keypass|-tsa|-storepass\s+[^:]/);
@@ -506,13 +522,16 @@ describe('呼び出し・取得の細目（UT-324・335〜337・344）', () => {
         const g9 = st('sign', 'G9');
         expect(g9.if).toContain("steps.mode.outputs.signing == 'signed'");
         expect(g9.if).not.toContain('always()');
-        expect(d.jobs.sign.env.AAB).toBe('${{ runner.temp }}/in/app-unsigned.aab');
+        for (const x of d.jobs.sign.steps.filter((y: any) => /\$\{?AAB\b/.test(w.runOf(y)))) {
+            expect([x.name, (x.env || {}).AAB]).toEqual([x.name, AAB_EXPR]);
+        }
+        expect(d.jobs.sign.env).toBeUndefined();
         expect(Object.keys(st('build', 'B13').env || {}).filter((k) => /KEYSTORE|ALIAS/.test(k))).toEqual([]);
     });
 });
 
 describe('権限・Environment・artifact 名の静的検査（UT-360・361・370）', () => {
-    it('UT-360 5jobとトップに contents: read・preflight/inspect/sign の checkout は persist-credentials: false・I6・G4 に run-id/github-token/repository なし・path と名前に run_attempt・pattern/merge-multiple/overwrite 0件・retention 1/1/14', () => {
+    it('UT-360 5jobとトップに contents: read・preflight/inspect/sign の checkout は persist-credentials: false・I6・G4 に run-id/github-token/repository なし・path と名前に run_attempt・pattern/merge-multiple/overwrite 0件・retention 1/144', () => {
         const d = doc();
         for (const j of ['preflight', 'inspect', 'sign']) {
             const co = d.jobs[j].steps.find((x: any) => /actions\/checkout/.test(x.uses || ''));
@@ -527,10 +546,9 @@ describe('権限・Environment・artifact 名の静的検査（UT-360・361・37
             }
         }
         expect(wfText()).not.toContain('overwrite');
-        expect(w.runOf(st('sign', 'G4'))).toMatch(/\bls\b/);
-        expect(w.runOf(st('inspect', 'I6'))).toMatch(/\bls\b/);
+        expect(lsNear('sign', 'G4')).toBe(true);
+        expect(lsNear('inspect', 'I6')).toBe(true);
         expect(st('build', 'B14').with['retention-days']).toBe(1);
-        expect(st('inspect', 'I11').with['retention-days']).toBe(1);
         expect(st('sign', 'G13').with['retention-days']).toBe(14);
     });
 
@@ -557,13 +575,13 @@ describe('権限・Environment・artifact 名の静的検査（UT-360・361・37
         expect(w.runOf(st('preflight', 'P5'))).toContain('--keystore-check required');
     });
 
-    it('UT-370 artifact 名の run_attempt: 3種類すべてに含む・inspect と sign は自分の run_attempt の名前で取得・同じ run の再実行で -a1→-a2 と変わる（名前の組立は run_number と run_attempt の2要素）', () => {
+    it('UT-370 artifact 名の run_attempt: 2種類（B14・G13）に含む・inspect と sign は自分の run_attempt の名前で取得・同じ run の再実行で -a1→-a2 と変わる（名前の組立は run_number と run_attempt の2要素）', () => {
         const d = doc();
-        for (const x of [st('build', 'B14'), st('inspect', 'I11'), st('sign', 'G13')]) {
+        for (const x of [st('build', 'B14'), st('sign', 'G13')]) {
             expect(w.str(x.with.name)).toContain('github.run_attempt');
         }
         const dl = [...d.jobs.inspect.steps, ...d.jobs.sign.steps].filter((x: any) => /download-artifact/.test(x.uses || ''));
-        expect(dl.length).toBeGreaterThanOrEqual(2);
+        expect(dl).toHaveLength(2); // inspect の I6 と sign の G4 の1つずつ（G4 は AAB と aab.sha256 の1 artifact だけ。facts は取得しない）
         for (const x of dl) {
             expect(w.str(x.with.name)).toMatch(/\$\{\{ github\.run_number \}\}-a\$\{\{ github\.run_attempt \}\}/);
             expect(w.str(x.with.name)).not.toContain('needs.');

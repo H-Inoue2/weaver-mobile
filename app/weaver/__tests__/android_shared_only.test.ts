@@ -48,13 +48,18 @@ describe('--shared-only（詳細設計 §5.4）', () => {
     it('UT-241 --shared-only --release で app/weaver にプレースホルダ1件: rc=1・出力に G3', () => {
         const r = sh(['--shared-only', '--release', noIos({messages: "export const WEAVER_MESSAGES = {x: '⟦ x ⟧'};\n"})]);
         expect(r.status).toBe(1);
-        expect(r.out).toContain('G3');
+        expect(r.out.split('\n').some((l: string) => /G3/.test(l) && /messages\.ts|⟦/.test(l))).toBe(true);
+        // 通常モード（--shared-only なし）の同じ違反行には検査名が付かない（基点と同じ）
+        const plain = sh(['--release', noIos({messages: "export const WEAVER_MESSAGES = {x: '⟦ x ⟧'};\n"})]);
+        expect(plain.out).not.toMatch(/\bG3\b/);
     });
 
     it('UT-242 --shared-only で constants.ts の定数が2行書式（G5 違反）: rc=1・出力に G5', () => {
         const r = sh(['--shared-only', noIos({constRaw: {SUPPORT_URL: "export const SUPPORT_URL =\n    'https://weaver.example/support';"}})]);
         expect(r.status).toBe(1);
-        expect(r.out).toContain('G5');
+        expect(r.out.split('\n').some((l: string) => /G5/.test(l) && /SUPPORT_URL/.test(l))).toBe(true);
+        const plain = sh([noIos({constRaw: {SUPPORT_URL: "export const SUPPORT_URL =\n    'https://weaver.example/support';"}})]);
+        expect(plain.out).not.toMatch(/\bG5\b/);
     });
 
     it('UT-243 --shared-only の失敗時の末尾付近の行に mode: と shared-only を含む', () => {

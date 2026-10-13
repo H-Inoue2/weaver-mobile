@@ -15,10 +15,10 @@ const NAMES = {
     verify: ['V1 Checkout', 'V1b Fetch reference commits', 'V2', 'V3', 'V4', 'V5', 'V6 Workflow lint (actionlint)', 'V7 Tracked secrets check'],
     preflight: ['Checkout (sparse)', 'Setup Java', 'Decide signing mode', 'Restore upload keystore', 'Check upload key (AG3 pre)', 'Delete keystore'],
     build: ['Checkout (sparse)', 'Prepare JS', 'Setup Java', 'Locate Android tools / Install SDK', 'Restore Gradle cache', 'Decide signing mode', 'Inject versionCode / versionName', 'Android guard (always)', 'Android guard (submission build)', 'Shared release guard (always)', 'Shared release guard (submission build)', 'Build AAB (bundleUnsigned)', 'Hash and upload unchecked AAB'],
-    inspect: ['Checkout (sparse)', 'Setup Java', 'Decide signing mode', 'Locate Android tools', 'Install bundletool', 'Download unchecked AAB', 'Verify input AAB', 'Pre-sign checks', '16KB alignment', 'Output checked sha256', 'Facts artifact'],
-    sign: ['Checkout (sparse)', 'Setup Java', 'Decide signing mode', 'Download unchecked AAB and facts', 'Verify AAB hash', 'Restore upload keystore', 'Sign AAB (jarsigner)', 'Delete keystore and confirm', 'Verify signature', 'Check certificate', 'Summary and final files', 'Play upload (reserved. manual upload only)', 'Upload final artifact'],
+    inspect: ['Checkout (sparse)', 'Setup Java', 'Decide signing mode', 'Locate Android tools', 'Install bundletool', 'Download unchecked AAB', 'Verify input AAB', 'Pre-sign checks', '16KB alignment', 'Output checked sha256'],
+    sign: ['Checkout (sparse)', 'Setup Java', 'Decide signing mode', 'Download unchecked AAB', 'Verify AAB hash', 'Restore upload keystore', 'Sign AAB (jarsigner)', 'Delete keystore and confirm', 'Verify signature', 'Check certificate', 'Summary and final files', 'Play upload (reserved. manual upload only)', 'Upload final artifact'],
 };
-// 添字（P1〜P6・B1〜B14（B7欠番）・I1〜I11・G1〜G13）
+// 添字（P1〜P6・B1〜B14（B7欠番）・I1〜I10（I11は廃止。v1.5）・G1〜G13）
 const IDX = {
     preflight: (n) => n - 1,
     build: (n) => (n < 7 ? n - 1 : n - 2),
@@ -59,7 +59,13 @@ const SHA40 = /^[0-9a-f]{40}$/;
 function secretRefs(doc) {
     const out = [];
     const scan = (where, job, stepName, val) => {
-        const t = str(val);
+        let t = str(val);
+        if (where === 'name' || where === 'id' || where === 'uses') {
+            return; // 名前・id・uses の文字列は参照ではない
+        }
+        if (where === 'run') {
+            t = (t.match(/\$\{\{[\s\S]*?\}\}/g) || []).join(' '); // run は ${{ }} の式の中だけ（シェルの説明文の secrets は参照でない）
+        }
         const re = /secrets(\.[A-Za-z0-9_]+|\[|\b)/g;
         let m;
         while ((m = re.exec(t))) {
@@ -308,8 +314,7 @@ function mutate(doc, fn) {
 function runStep(st, o = {}) {
     const work = o.cwd || s.tmp('k79-step-');
     const script = s.write(work, '.step.sh', runOf(st) + '\n');
-    const base = {PATH: process.env.PATH, SYSTEMROOT: process.env.SYSTEMROOT, TEMP: process.env.TEMP, TMP: process.env.TMP, HOME: process.env.HOME};
-    const env = {...base, ...(o.env || {})};
+    const env = {...process.env, ...(o.env || {})}; // 親の環境を引き継ぐ（MSYS の PATH 変換に必要）。読む変数の全数は静的検査（§4.3.4）で縛る
     if (o.stubDir) {
         env.PATH = s.posix(o.stubDir) + path.delimiter + env.PATH;
         env.STUB_LOG = s.posix(path.join(o.stubDir, 'stub.log'));

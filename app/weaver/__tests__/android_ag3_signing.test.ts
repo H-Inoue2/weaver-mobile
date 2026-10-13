@@ -47,9 +47,9 @@ function pre(o: {signing?: string; mode?: string; upload?: string; check?: strin
             env[k] = v;
         }
     }
-    const args = ['ag3', '--phase', 'pre', '--mode', o.mode || 'confirm', '--signing', o.signing || 'signed', '--upload-to-play', o.upload || 'false'];
+    const args = ['ag3', '--phase', 'pre', '--mode', o.mode ?? 'confirm', '--signing', o.signing ?? 'signed', '--upload-to-play', o.upload ?? 'false'];
     if (o.check !== null) {
-        args.push('--keystore-check', o.check || 'required');
+        args.push('--keystore-check', o.check ?? 'required');
     }
     const r = s.guard(args, {env, stubDir: stubs.dir, unsetEnv: unset});
     return {r, stubs};
@@ -247,9 +247,9 @@ const haveJarsigner = s.toolOk(s.L2_JARSIGNER);
 const itL2 = (name: string, ok: boolean, fn: () => void) => (ok ? it(name, fn) : it.skip(`${s.ENV_MISSING}${name}`, fn));
 const L2PW = 'CANARY_L2_PW_71c';
 
-function makeKeystore(dir: string, storePw: string, keyPw: string, alias = 'weaver-test') {
+function makeKeystore(dir: string, storePw: string, keyPw: string, alias = 'weaver-test', dn = 'CN=Weaver Upload, O=MET Architect') {
     const ks = s.posix(dir + '/ks.jks');
-    const r = cp.spawnSync(s.BASH, ['-c', `"${s.L2_KEYTOOL}" -genkeypair -alias ${alias} -keyalg RSA -keysize 2048 -validity 2 -dname "CN=Weaver Upload, O=MET Architect" -keystore "${ks}" -storepass:env WEAVER_L2_STORE -keypass:env WEAVER_L2_KEY`], {encoding: 'utf8', env: {...process.env, WEAVER_L2_STORE: storePw, WEAVER_L2_KEY: keyPw}});
+    const r = cp.spawnSync(s.BASH, ['-c', `"${s.L2_KEYTOOL}" -genkeypair -alias ${alias} -keyalg RSA -keysize 2048 -validity 2 -dname "${dn}" -keystore "${ks}" -storepass:env WEAVER_L2_STORE -keypass:env WEAVER_L2_KEY`], {encoding: 'utf8', env: {...process.env, WEAVER_L2_STORE: storePw, WEAVER_L2_KEY: keyPw}});
     return {ks, ok: r.status === 0, err: r.stderr};
 }
 function certSha(ks: string, storePw: string, alias = 'weaver-test') {
@@ -279,7 +279,7 @@ describe('AG3 L2（実 keytool・jarsigner）', () => {
         }
     });
 
-    itL2('UT-085 使い捨て jar を同 keystore で署名（jarsigner）し keytool -printcert -jarfile の出力を post へ: 一致で rc=0。android/app/debug.keystore で署名した版は rc=1（CN=Android Debug）', haveKeytool && haveJarsigner, () => {
+    itL2('UT-085 使い捨て jar を同 keystore で署名（jarsigner）し keytool -printcert -jarfile の出力を post へ: 一致で rc=0。CN=Android Debug の使い捨て鍵で署名した版は、登録値と一致しても rc=1', haveKeytool && haveJarsigner, () => {
         const d = s.tmp();
         const k = makeKeystore(d, L2PW, L2PW);
         expect(k.ok).toBe(true);
@@ -288,7 +288,10 @@ describe('AG3 L2（実 keytool・jarsigner）', () => {
         const jar2 = s.posix(s.write(d, 'b.jar', s.zipBuf({'x.txt': 'x'}), null));
         const sign = (jar: string, ks: string, pw: string, alias: string) => cp.spawnSync(s.BASH, ['-c', `"${s.L2_JARSIGNER}" -keystore "${ks}" -storepass:env WEAVER_L2_STORE -sigalg SHA256withRSA -digestalg SHA-256 "${jar}" ${alias}`], {encoding: 'utf8', env: {...process.env, WEAVER_L2_STORE: pw}});
         expect(sign(jar1, k.ks, L2PW, 'weaver-test').status).toBe(0);
-        expect(sign(jar2, s.posix(s.abs('android/app/debug.keystore')), 'android', 'androiddebugkey').status).toBe(0);
+        // リポジトリの android/app/debug.keystore は Mattermost 社の QA 鍵（CN=QA Team）で CN=Android Debug ではない（D-S2-10）。使い捨ての「Android Debug」鍵を作って確かめる
+        const dbg = makeKeystore(s.tmp(), 'android', 'android', 'androiddebugkey', 'CN=Android Debug, O=Android, C=US');
+        expect(dbg.ok).toBe(true);
+        expect(sign(jar2, dbg.ks, 'android', 'androiddebugkey').status).toBe(0);
         const printcert = (jar: string) => cp.spawnSync(s.BASH, ['-c', `"${s.L2_KEYTOOL}" -printcert -jarfile "${jar}"`], {encoding: 'utf8'}).stdout;
         const c1 = s.posix(s.write(d, 'c1.txt', printcert(jar1)));
         const c2 = s.posix(s.write(d, 'c2.txt', printcert(jar2)));

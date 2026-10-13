@@ -273,9 +273,9 @@ describe('B切替（精密位置 ACCESS_FINE_LOCATION だけを外す。詳細�
 describe('post が ag1 へ --allow-pending を渡す条件（詳細設計 §5.2・D-K79R0-24）', () => {
     it('UT-333 （b）B-PENDING＋マージ後に USE_BIOMETRIC: post --signing unsigned は rc=0＋NOTE、--signing signed は rc=1（--allow-pending を渡さない）', () => {
         const pendingAllow = s.allowlistTxt({b: ['B-PENDING']});
-        const manifestWithBio = s.manifestXml({perms: [...s.A18, ['USE_BIOMETRIC']], pkg: 'com.metarchitect.Weaver'}).replace('<manifest ', '<manifest ').replace(/(<manifest[^>]*>)/, '$1\n    <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="36" />');
         const mk = (signed: boolean) => {
-            const d = s.extractDir({manifestXml: manifestWithBio, signed, certTxt: signed ? s.certTxt() : s.certTxt({unsigned: true})});
+            // マージ後の完全な manifest（FQCN・versionCode 付き）を extractDir で作り、権限だけ足す（D-S2-05）
+            const d = s.extractDir({extraPerms: [['USE_BIOMETRIC']], signed, certTxt: signed ? s.certTxt() : s.certTxt({unsigned: true})});
             const al = s.write(d, 'allow.txt', pendingAllow);
             return {d, al};
         };

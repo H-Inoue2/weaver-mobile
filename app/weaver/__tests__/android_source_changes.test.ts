@@ -83,13 +83,17 @@ describe('ソース変更（詳細設計 §2.2）', () => {
         expect(d.added.filter((l) => /uses-permission/.test(l) && !/MICROPHONE/.test(l))).toEqual([]);
     });
 
-    it('UT-290【現】マニフェストの構文: fast-xml-parser で構文エラー0件・xmlns:tools 宣言あり・<service> の除去2件の android:name が FQCN と完全一致', () => {
+    it('UT-290【現】マニフェストの構文: fast-xml-parser で構文エラー0件・xmlns:tools 宣言あり・<service> の除去2件の android:name が基点の除去分＋FQCN2件と完全一致', () => {
         const t = s.read(MAN);
         expect(XMLValidator.validate(t)).toBe(true);
         expect(t).toContain('xmlns:tools=');
         const j = new XMLParser({ignoreAttributes: false, attributeNamePrefix: '@_'}).parse(t);
         const services = ([] as any[]).concat(j.manifest.application.service || []).filter((x: any) => x['@_tools:node'] === 'remove').map((x: any) => x['@_android:name']).sort();
-        expect(services).toEqual(['com.mattermost.callsnative.MMCallsForegroundService', 'com.oney.WebRTCModule.MediaProjectionService']);
+        // 基点の上流マニフェストに、既に tools:node="remove" の service（NitroBackgroundTimerService）がある（D-S2-12）。期待＝基点の除去 service ＋ Weaver が足す2件
+        const bj = new XMLParser({ignoreAttributes: false, attributeNamePrefix: '@_'}).parse(baseText(MAN));
+        const baseRemoved = ([] as any[]).concat(bj.manifest.application.service || []).filter((x: any) => x['@_tools:node'] === 'remove').map((x: any) => x['@_android:name']);
+        expect(services).toEqual([...new Set([...baseRemoved, 'com.mattermost.callsnative.MMCallsForegroundService', 'com.oney.WebRTCModule.MediaProjectionService'])].sort());
+        expect(services).toEqual(expect.arrayContaining(['com.mattermost.callsnative.MMCallsForegroundService', 'com.oney.WebRTCModule.MediaProjectionService']));
     });
 
     it('UT-291【現】network_security_config.xml（S3後）: 差分は base-config の cleartextTrafficPermitted が "false" と先頭コメントの2点・base-config は1つ・domain-config／debug-overrides 0件・user 証明書（src="user"）は残る', () => {

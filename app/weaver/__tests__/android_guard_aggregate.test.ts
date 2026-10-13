@@ -81,7 +81,7 @@ describe('集約 pre（詳細設計 §5.2）', () => {
         expect(s.failedLabels(allow)).not.toContain('AG6');
         const good = s.fullTree();
         expect(s.failedLabels(pre(good, {extra: ['--cleartext', 'allow']}))).toContain('AG6');
-        const d = s.extractDir({cleartext: 'true'});
+        const d = s.extractDir({cleartext: 'true', nscTxt: 'A: cleartextTrafficPermitted=true (Raw: "true")\n  E: certificates src="user"\n'});
         const a = post(d, good);
         const b = post(d, good, {extra: ['--cleartext', 'allow']});
         expect(s.failedLabels(a)).toContain('AG6');
@@ -270,5 +270,26 @@ describe('段階ゲート（詳細設計 §1.4。段階値 .github/android_stage
             expect(r2.rc).toBe(0);
             expect(r2.out).toContain('ANDROID GUARD pre PASSED (confirm, unsigned)');
         }
+    });
+});
+
+describe('UT-380 post の期待値不一致の陽性対照（inspect の I8 が sign の期待値＝APP_VERSION・VERSION_CODE と突き合わせる。v1.5）', () => {
+    it('AG7 post: versionCode が 1000+run と違う・versionName が違うと、post 全体が rc=1 で FAIL: AG7 だけが出る。一致なら rc=0', () => {
+        const root0 = s.fullTree();
+        const ok = post(s.extractDir({versionCode: 1001}), root0);
+        expect(ok.rc).toBe(0);
+        const vc = post(s.extractDir({versionCode: 1500}), root0);
+        expect([vc.rc, s.failedLabels(vc)]).toEqual([1, ['AG7']]);
+        const vn = post(s.extractDir({versionName: '2.46.0'}), root0);
+        expect([vn.rc, s.failedLabels(vn)]).toEqual([1, ['AG7']]);
+    });
+
+    it('AG2 post: 実キー形式・目印あり（署名あり相当）で project_id が --firebase-project-id と違うと FAIL: AG2。一致なら AG2 は通る', () => {
+        const root = s.fullTree({real: true});
+        const mk = (pid: string) => s.extractDir({resources: `string/project_id: ${pid}\nstring/google_app_id: ${s.REAL.appId}\n`});
+        const okR = post(mk(s.REAL.projectId), root, {env: {WEAVER_FIREBASE_PROJECT_ID: s.REAL.projectId}});
+        expect(s.failedLabels(okR)).not.toContain('AG2');
+        const ng = post(mk('other-project'), root, {env: {WEAVER_FIREBASE_PROJECT_ID: s.REAL.projectId}});
+        expect(s.failedLabels(ng)).toContain('AG2');
     });
 });

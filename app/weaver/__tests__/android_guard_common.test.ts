@@ -165,7 +165,7 @@ describe('共通規約・CLI（詳細設計 §5.1）', () => {
     });
 
     it('UT-013 合格は PASSED 行、警告は WARN: AG5: …（rc=0）', () => {
-        const root = s.goodTree({appName: 'Mattermost Beta'});
+        const root = s.goodTree({appName: 'Mattermost Beta', hashes: `${s.sha256Buf(Buffer.from('upstream-image'))}  ${s.IMG_REL}\n`, files: {[s.IMG_REL]: 'replaced-image'}});
         const r = s.guard(['ag5', '--mode', 'confirm', '--root', s.posix(root), '--hash-list', s.posix(root + '/' + s.HASHES_REL)]);
         expect(r.rc).toBe(0);
         expect(s.warnLines(r, 'AG5').length).toBeGreaterThanOrEqual(1);

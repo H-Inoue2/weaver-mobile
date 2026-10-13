@@ -170,6 +170,15 @@ describe('UT-347 unsigned 定義の静的テスト', () => {
 
 // ---- 同等性・Q-19（一回限り。捨てブランチ上）----
 const EQ_BRANCH = 'k79-equivalence-trial';
+// 捨てブランチ前提のテストは、CI の shallow fetch にそのブランチが無いと V4（jest）が必ず赤になる。ブランチが無いときは skip し、
+// 合格に数えず「未実施（環境）」と記録する（D-S2-14）。ブランチがある環境（ローカル・実施時）では実行する。
+const branchOk = (b: string) => s.git(['rev-parse', '--verify', '-q', 'refs/heads/' + b]).rc === 0;
+const itEq = branchOk('k79-equivalence-trial') ? it : it.skip;
+const itEnv = branchOk('k79-env-restriction-trial') ? it : it.skip;
+if (!branchOk('k79-equivalence-trial') || !branchOk('k79-env-restriction-trial')) {
+    // eslint-disable-next-line no-console
+    console.warn(s.ENV_MISSING + ' 捨てブランチ前提のテスト（UT-348・349・363・364）: 該当ブランチが無いので実行しない');
+}
 const ENV_BRANCH = 'k79-env-restriction-trial';
 function branchFile(branch: string, rel: string) {
     const r = s.git(['show', `refs/heads/${branch}:${rel}`]);
@@ -179,7 +188,7 @@ function branchFile(branch: string, rel: string) {
     return r.out.toString('utf8').replace(/\r/g, '');
 }
 describe('UT-348 一回限りのワークフロー2本の静的検査', () => {
-    it('同等性（weaver-android-equivalence-trial.yml）: push は branches=k79-equivalence-trial のみ・contents: read・secrets 0件・timeout 240・inject 呼出0件・ORG_GRADLE_PROJECT_ はこのファイルだけ・Play/AAB アップロード0件', () => {
+    itEq('同等性（weaver-android-equivalence-trial.yml）: push は branches=k79-equivalence-trial のみ・contents: read・secrets 0件・timeout 240・inject 呼出0件・ORG_GRADLE_PROJECT_ はこのファイルだけ・Play/AAB アップロード0件', () => {
         const d = w.load(branchFile(EQ_BRANCH, '.github/workflows/weaver-android-equivalence-trial.yml'));
         const on = d.on ?? d[true as any];
         expect(Object.keys(on)).toEqual(['push']);
@@ -192,7 +201,7 @@ describe('UT-348 一回限りのワークフロー2本の静的検査', () => {
         expect(t).toContain('ORG_GRADLE_PROJECT_');
         expect(t).not.toMatch(/\*\.aab|\*\.jks|\*\.keystore|upload-google-play/);
     });
-    it('Q-19（weaver-android-env-restriction-trial.yml）: push は branches=k79-env-restriction-trial のみ・job は1つで environment: android-upload-key（直接）・contents: read・ステップは1つで "ENVIRONMENT JOB STARTED" を echo するだけ・secrets 0件', () => {
+    itEnv('Q-19（weaver-android-env-restriction-trial.yml）: push は branches=k79-env-restriction-trial のみ・job は1つで environment: android-upload-key（直接）・contents: read・ステップは1つで "ENVIRONMENT JOB STARTED" を echo するだけ・secrets 0件', () => {
         const d = w.load(branchFile(ENV_BRANCH, '.github/workflows/weaver-android-env-restriction-trial.yml'));
         const on = d.on ?? d[true as any];
         expect(on.push.branches).toEqual([ENV_BRANCH]);
@@ -244,7 +253,7 @@ function eqRun(r: Record<string, string>, sRef: Record<string, string>, e: strin
 const MAIN4 = {'base/manifest/AndroidManifest.xml': 'm', 'base/resources.pb': 'r', 'base/dex/classes.dex': 'd', 'base/lib/arm64-v8a/liba.so': 'so'};
 const DEP = 'BUNDLE-METADATA/com.android.tools.build.libraries/dependencies.pb';
 describe('UT-349 同等性の比較ステップ（詳細設計§4.9.2。R_DIR・S_DIR・E_FILE・K_FILE任意。出力 OK compared=n／FAIL: <パス> R=<sha> S=<sha>）', () => {
-    it('①ルート直下 META-INF だけ違う→rc=0・OK compared=4 ②本体の1エントリ違う→rc=1・FAIL: <パス> R=<sha256> S=<sha256> ③E に入っている dependencies.pb だけ違う→rc=0 ④エントリの有無が違う→rc=1 ⑤E が空で同一→rc=0 ⑥base/root/META-INF/MANIFEST.MF だけ違う→rc=1 ⑦主要4エントリが無い→rc=1', () => {
+    itEq('①ルート直下 META-INF だけ違う→rc=0・OK compared=4 ②本体の1エントリ違う→rc=1・FAIL: <パス> R=<sha256> S=<sha256> ③E に入っている dependencies.pb だけ違う→rc=0 ④エントリの有無が違う→rc=1 ⑤E が空で同一→rc=0 ⑥base/root/META-INF/MANIFEST.MF だけ違う→rc=1 ⑦主要4エントリが無い→rc=1', () => {
         const a = eqRun({...MAIN4, 'META-INF/A.SF': '1'}, {...MAIN4, 'META-INF/A.SF': '2'}, []);
         expect(a.rc).toBe(0);
         expect(a.all).toContain('OK compared=4');
@@ -257,7 +266,7 @@ describe('UT-349 同等性の比較ステップ（詳細設計§4.9.2。R_DIR・
         expect(eqRun({...MAIN4, 'base/root/META-INF/MANIFEST.MF': '1'}, {...MAIN4, 'base/root/META-INF/MANIFEST.MF': '2'}, []).rc).toBe(1);
         expect(eqRun({'x/y': '1'}, {'x/y': '1'}, []).rc).toBe(1);
     });
-    it('⑧使い方の誤り: R_DIR／S_DIR／E_FILE が未設定は rc=2。E_FILE の空行・# 行は無視。違反は全件出す', () => {
+    itEq('⑧使い方の誤り: R_DIR／S_DIR／E_FILE が未設定は rc=2。E_FILE の空行・# 行は無視。違反は全件出す', () => {
         for (const k of ['R_DIR', 'S_DIR', 'E_FILE']) {
             expect([k, eqRun({...MAIN4}, {...MAIN4}, [], {omit: [k]}).rc]).toEqual([k, 2]);
         }
@@ -266,7 +275,7 @@ describe('UT-349 同等性の比較ステップ（詳細設計§4.9.2。R_DIR・
         expect(both.rc).toBe(1);
         expect((both.all.match(/FAIL:/g) || []).length).toBe(2);
     });
-    it('K_FILE: ①K に入れた classes.dex だけの差→rc=0 ②未設定で classes.dex が違う→rc=1 ③K が2件→rc=1 ④K が dex 以外→rc=1 ⑤K のエントリが両側に無い→rc=1', () => {
+    itEq('K_FILE: ①K に入れた classes.dex だけの差→rc=0 ②未設定で classes.dex が違う→rc=1 ③K が2件→rc=1 ④K が dex 以外→rc=1 ⑤K のエントリが両側に無い→rc=1', () => {
         const dx = 'base/dex/classes.dex';
         expect(eqRun({...MAIN4}, {...MAIN4, [dx]: 'D2'}, [], {k: [dx]}).rc).toBe(0);
         expect(eqRun({...MAIN4}, {...MAIN4, [dx]: 'D2'}, []).rc).toBe(1);
@@ -278,7 +287,7 @@ describe('UT-349 同等性の比較ステップ（詳細設計§4.9.2。R_DIR・
 describe('UT-363 同等性の除外一覧 E の規則（詳細設計§4.9.2 E・判定⑤）', () => {
     const dep = (n: string) => `BUNDLE-METADATA/${n}`;
     const diff = (paths: string[]) => eqRun({...MAIN4, ...Object.fromEntries(paths.map((p) => [p, '1']))}, {...MAIN4, ...Object.fromEntries(paths.map((p) => [p, '2']))}, paths);
-    it('①1件②BUNDLE-METADATA/配下5件ちょうどは rc=0、③6件は rc=1（FAIL: E:）、④dex・⑤BundleConfig.pb・⑥本体各種・⑦base/root/META-INF が E に入ったら rc=1（FAIL: E: <パス>）、⑧E が空は rc=0', () => {
+    itEq('①1件②BUNDLE-METADATA/配下5件ちょうどは rc=0、③6件は rc=1（FAIL: E:）、④dex・⑤BundleConfig.pb・⑥本体各種・⑦base/root/META-INF が E に入ったら rc=1（FAIL: E: <パス>）、⑧E が空は rc=0', () => {
         expect(diff([dep('com.android.tools.build.libraries/dependencies.pb')]).rc).toBe(0);
         expect(diff([1, 2, 3, 4, 5].map((i) => dep('a' + i))).rc).toBe(0);
         const six = diff([1, 2, 3, 4, 5, 6].map((i) => dep('a' + i)));
@@ -293,7 +302,7 @@ describe('UT-363 同等性の除外一覧 E の規則（詳細設計§4.9.2 E・
     });
 });
 describe('UT-364 同等性の K の規則（BuildConfig を含む dex 1本だけ。K_FILE は1件以下で classes*.dex だけ）', () => {
-    it('比較ステップは K_FILE を読み、K に無い dex の差を拒否する。dexdump -d の正規化（string@ 等の除去）と BUILD_TYPE の差だけを許す処理が同等性ワークフローに存在する（正規化の fixture 検証は実装後）', () => {
+    itEq('比較ステップは K_FILE を読み、K に無い dex の差を拒否する。dexdump -d の正規化（string@ 等の除去）と BUILD_TYPE の差だけを許す処理が同等性ワークフローに存在する（正規化の fixture 検証は実装後）', () => {
         const dx = 'base/dex/classes.dex';
         expect(eqRun({...MAIN4}, {...MAIN4, [dx]: 'D2'}, [], {k: [dx]}).rc).toBe(0);
         expect(eqRun({...MAIN4}, {...MAIN4, [dx]: 'D2'}, []).rc).toBe(1);
@@ -316,7 +325,7 @@ describe('UT-357 inspect・sign は build の出力に依存しない', () => {
         for (const b of BUILD_DEP) {
             expect(t).not.toContain(b);
         }
-        const all = (t.match(/needs\.[a-z_.]+/g) || []).filter((x: string) => x !== 'needs.inspect.outputs.checked_sha256');
+        const all = (t.match(/needs\.[a-z0-9_.]+/g) || []).filter((x: string) => x !== 'needs.inspect.outputs.checked_sha256');
         expect(all).toEqual([]);
         expect(viol(d, 'R8')).toEqual([]);
     });
@@ -413,7 +422,7 @@ describe('UT-359 鍵の削除の順序と失敗時の挙動', () => {
 });
 
 describe('UT-362 I6・I7・B14・G4・G5 の配線', () => {
-    it('I6 の name・path・I7 の引数（--expect-sha256 なし）・B14 の aab.sha256・G4 の download×2 と ls・G5 の env 経由の CHECKED_SHA256', () => {
+    it('I6 の name・path・I7 の引数（--expect-sha256 なし）・B14 の aab.sha256・G4 は AAB と aab.sha256 の1 artifact だけ（facts は取得しない）と ls・G5 の env 経由の CHECKED_SHA256', () => {
         const d = doc();
         const i6 = w.step(d, 'inspect', 'I6');
         expect(i6.with.name).toBe('weaver-android-unchecked-${{ github.run_number }}-a${{ github.run_attempt }}');
@@ -425,12 +434,18 @@ describe('UT-362 I6・I7・B14・G4・G5 の配線', () => {
         expect(w.str(b14.run || '') + w.str(b14.with.path)).toContain('aab.sha256');
         const g4 = w.step(d, 'sign', 'G4');
         const dls = d.jobs.sign.steps.filter((x: any) => /download-artifact/.test(x.uses || ''));
-        expect(dls.length + (g4.uses ? 0 : 1)).toBeGreaterThanOrEqual(2);
-        expect(w.runOf(g4) + dls.map((x: any) => w.str(x.with)).join('')).toMatch(/facts-in/);
+        expect(dls).toHaveLength(1);
+        expect(dls[0]).toBe(g4);
+        expect(w.str(g4.with.name)).toBe('weaver-android-unchecked-${{ github.run_number }}-a${{ github.run_attempt }}');
+        expect(w.str(g4.with.path)).toBe('${{ runner.temp }}/in');
+        expect(JSON.stringify(d.jobs.sign)).not.toMatch(/facts-in|weaver-android-facts/);
+        const k = w.stepIndex(d, 'sign', 'G4');
+        expect(d.jobs.sign.steps.slice(k, k + 3).some((x: any) => /\bls\b/.test(w.runOf(x)))).toBe(true);
         const g5 = w.step(d, 'sign', 'G5');
         expect(w.runOf(g5)).toContain('weaver_android_aab.sh verify-hash --aab "$AAB" --expect-sha256 "$CHECKED_SHA256"');
         expect(g5.env.CHECKED_SHA256).toBe('${{ needs.inspect.outputs.checked_sha256 }}');
-        expect(d.jobs.sign.env.AAB).toBe('${{ runner.temp }}/in/app-unsigned.aab');
+        expect(g5.env.AAB).toBe('${{ runner.temp }}/in/app-unsigned.aab');
+        expect(d.jobs.sign.env).toBeUndefined();
     });
 });
 
@@ -556,16 +571,16 @@ describe('UT-372 最終 AAB の名前・kind は sign 自身の値だけ', () =>
         expect(name).toMatch(/github\.run_number/);
     });
     const muts: Array<[string, (d: any) => void]> = [
-        ['①cp 先の名前に facts を grep した値', (d) => (w.step(d, 'sign', 'G11').run = w.runOf(w.step(d, 'sign', 'G11')).replace('$APP_VERSION', "$(grep '^version=' $RUNNER_TEMP/facts-in/facts.txt | cut -d= -f2)"))],
-        ['②facts.txt を source する', (d) => (w.step(d, 'sign', 'G11').run += '\nsource "$RUNNER_TEMP/facts-in/facts.txt"')],
+        ['①cp 先の名前に facts を grep した値', (d) => (w.step(d, 'sign', 'G11').run = w.runOf(w.step(d, 'sign', 'G11')).replace('$APP_VERSION', "$(grep '^version=' $RUNNER_TEMP/facts.txt | cut -d= -f2)"))],
+        ['②facts.txt を source する', (d) => (w.step(d, 'sign', 'G11').run += '\nsource "$RUNNER_TEMP/facts.txt"')],
         ['③G13 の name に needs.inspect.outputs', (d) => (w.step(d, 'sign', 'G13').with.name += '-${{ needs.inspect.outputs.checked_sha256 }}')],
-        ['④KIND を facts から取る', (d) => (w.step(d, 'sign', 'G11').run += '\nKIND=$(grep kind "$RUNNER_TEMP/facts-in/facts.txt")')],
+        ['④KIND を facts から取る', (d) => (w.step(d, 'sign', 'G11').run += '\nKIND=$(grep kind "$RUNNER_TEMP/facts.txt")')],
     ];
     it.each(muts)('改造 %s は検出される', (_n, fn) => {
         const m = w.mutate(doc(), fn);
         const g11 = w.runOf(w.step(m, 'sign', 'G11'));
         const name = w.str(w.step(m, 'sign', 'G13').with.name);
-        const bad = /facts\.txt/.test(g11.replace(/--facts "\$RUNNER_TEMP\/facts-in\/facts\.txt"/, '')) || /needs\./.test(name);
+        const bad = /facts\.txt/.test(g11.replace(/--(facts|out) "\$RUNNER_TEMP\/facts\.txt"/g, '')) || /needs\./.test(name);
         expect(bad).toBe(true);
     });
 });
@@ -584,7 +599,10 @@ describe('UT-373 第三者アクション（uses:）の要件', () => {
         const i6 = w.step(d, 'inspect', 'I6');
         expect(i6.with.pattern).toBeUndefined();
         expect(i6.with['merge-multiple']).toBeUndefined();
-        expect(w.runOf(w.step(d, 'inspect', 'I6')) + JSON.stringify(d.jobs.inspect.steps[w.stepIndex(d, 'inspect', 'I6') + 1] || {})).toMatch(/\bls\b/);
+        {
+            const k6 = w.stepIndex(d, 'inspect', 'I6');
+            expect(d.jobs.inspect.steps.slice(k6, k6 + 3).some((x: any) => /\bls\b/.test(w.runOf(x)))).toBe(true);
+        }
         expect(w.stepIndex(d, 'sign', 'G4')).toBeLessThan(w.stepIndex(d, 'sign', 'G5'));
         expect(w.stepIndex(d, 'sign', 'G4')).toBeLessThan(w.stepIndex(d, 'sign', 'G6'));    });
     it('改造: タグ・ブランチ・短縮SHA・41桁を preflight に入れると R7 で失敗する', () => {

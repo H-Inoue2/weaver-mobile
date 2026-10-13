@@ -11,7 +11,20 @@ const path = require('path');
 const {spawnSync} = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..', '..', '..');
-const BASH = process.env.WEAVER_TEST_BASH || 'bash';
+// Windows では PATH を最小化した試験（UT-018・235）でも bash を見つけられるよう、Git の bash.exe を絶対パスで解決する（D-S2-13）
+const BASH = process.env.WEAVER_TEST_BASH || (() => {
+    // PATH を最小化した試験（UT-018・235）でも bash を見つけられるよう、今の PATH から bash の絶対パスを解決しておく（D-S2-13）
+    if (process.platform !== 'win32') {
+        return 'bash';
+    }
+    for (const d of (process.env.PATH || '').split(';')) {
+        const p = d.replace(/\+$/, '') + '/bash.exe';
+        if (d && fs.existsSync(p)) {
+            return p;
+        }
+    }
+    return 'bash';
+})();
 const posix = (p) => p.replace(/\\/g, '/');
 const abs = (rel) => path.join(ROOT, rel);
 const exists = (rel) => fs.existsSync(abs(rel));
@@ -312,7 +325,11 @@ const KOTLIN_FILES = ['MainApplication.kt', 'MainActivity.kt', 'CustomPushNotifi
 function goodTree(o = {}) {
     const root = tmp('k79-tree-');
     const fx = o.files || {};
-    const put = (rel, content) => write(root, rel, Object.prototype.hasOwnProperty.call(fx, rel) ? fx[rel] : content);
+    const written = new Set();
+    const put = (rel, content) => {
+        written.add(rel);
+        return write(root, rel, Object.prototype.hasOwnProperty.call(fx, rel) ? fx[rel] : content);
+    };
     put('android/app/build.gradle', buildGradle(o.gradle || {}));
     for (const f of KOTLIN_FILES) {
         const ext = f.endsWith('.java') ? ';' : '';
@@ -330,6 +347,12 @@ function goodTree(o = {}) {
     put(ALLOWLIST_REL, allowlistTxt(o.allow || {}));
     put(HASHES_REL, o.hashes || '');
     put(BASELINE_REL, JSON.stringify({tsc_errors: 45, jest_passed: 297, jest_pending: 1}) + '\n');
+    // 固定の一覧に無いファイル（テストが足すクラス・画像など）も書く（D-S2-06）
+    for (const [rel, content] of Object.entries(fx)) {
+        if (!written.has(rel)) {
+            write(root, rel, content);
+        }
+    }
     return root;
 }
 
@@ -351,7 +374,8 @@ function extractDir(o = {}) {
     const man = o.manifestXml || [
         `<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="${o.pkg || 'com.metarchitect.Weaver'}" android:versionCode="${o.versionCode === undefined ? 1001 : o.versionCode}" android:versionName="${o.versionName || '2.45.0'}">`,
         `    <uses-sdk android:minSdkVersion="${o.minSdk || 30}" android:targetSdkVersion="${o.targetSdk || 36}" />`,
-        ...A18.map(permLine),
+        // マージ後のマニフェストは（a）∪（b）と完全一致する（AG1 merged）。fixture の許可リストの（b）の2件も含める（D-S2-05）
+        ...(o.perms || [...A18, ['WAKE_LOCK'], ['com.metarchitect.Weaver.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION']]).concat(o.extraPerms || []).map(permLine),
         `    <application android:name="com.mattermost.rnbeta.MainApplication" android:resizeableActivity="${o.resizeable || 'false'}" android:usesCleartextTraffic="${o.cleartext || 'false'}">`,
         '        <activity android:name="com.mattermost.rnbeta.MainActivity" />',
         '        <service android:name="com.mattermost.rnbeta.NotificationDismissService" />',

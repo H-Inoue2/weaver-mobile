@@ -67,7 +67,7 @@ describe('tools（UT-208〜211）', () => {
     it('UT-211 ①5つそろう: 出力は KEY=VALUE の5行ちょうどで WEAVER_BUNDLETOOL_JAR は0件 ②1つだけ無い5通りは rc=1・見つからなかったキー名が出る', () => {
         const ok = toolsRun();
         expect(ok.rc).toBe(0);
-        expect(ok.out.split('\n').filter((l: string) => /^[A-Z_]+=/.test(l))).toHaveLength(5);
+        expect(ok.out.split('\n').filter((l: string) => /^[A-Z0-9_]+=/.test(l))).toHaveLength(5);
         expect(ok.out).not.toContain('WEAVER_BUNDLETOOL_JAR');
         const keyOf: Record<string, string> = {keytool: 'WEAVER_KEYTOOL', aapt2: 'WEAVER_AAPT2', zipalign: 'WEAVER_ZIPALIGN', dexdump: 'WEAVER_DEXDUMP', 'llvm-objdump': 'WEAVER_OBJDUMP'};
         for (const t of TOOLS) {
@@ -360,31 +360,29 @@ describe('verify-hash（UT-365・366）', () => {
     });
 });
 
-// ---- facts ----
-function factsRun(dirOpts: {versionCode?: number | string; versionName?: string; manifestXml?: string}, run: string | number, o: {out?: string} = {}) {
-    const d = s.extractDir(dirOpts);
-    const out = path.join(s.tmp('k79-facts-'), 'facts.txt');
-    const r = s.aab(['facts', '--dir', s.posix(d), '--run', String(run), '--out', s.posix(o.out || out)]);
-    return {r, out: o.out || out};
+// ---- facts（v1.5: sign の G11 が --version --version-code --run --out で自分の期待値から作る）----
+function factsRun(v: string, vc: string, run: string, o: {out?: string} = {}) {
+    const out = o.out || path.join(s.tmp('k79-facts-'), 'facts.txt');
+    const r = s.aab(['facts', '--version', v, '--version-code', vc, '--run', run, '--out', s.posix(out)]);
+    return {r, out};
 }
-describe('facts（UT-371）', () => {
-    it('UT-371（facts側）正常: version・versionCode・run の3行ちょうど・1KB以下・制御文字なし。違反（versionName に改行／33桁超／versionCode が11桁／run が abc／キー追加）は書かずに rc=1・ファイルが出来ない', () => {
-        const ok = factsRun({versionCode: 1234, versionName: '2.45.0'}, 234);
+describe('facts（UT-371。入力は sign 自作の期待値）', () => {
+    it('UT-371（facts側）正常: version・versionCode・run の3行ちょうど・1KB以下・制御文字なし。書式違反（version に改行・;・先頭 v・空・33文字／versionCode が11桁・非数字・空／run が非数字・空・11桁）は書かずに rc=1・ファイルが出来ない（書式検査は sign 自作の facts にも適用）', () => {
+        const ok = factsRun('2.45.0', '1234', '234');
         expect(ok.r.rc).toBe(0);
         const t = fs.readFileSync(ok.out, 'utf8');
         expect(t.replace(/\n$/, '').split('\n')).toEqual(['version=2.45.0', 'versionCode=1234', 'run=234']);
         expect(t.length).toBeLessThanOrEqual(1024);
         expect(/[\x00-\x09\x0b-\x1f\x7f]/.test(t)).toBe(false);
-        const bads = [
-            factsRun({versionName: '2.45.0\nX=1'}, 234),
-            factsRun({versionName: '1.' + '0'.repeat(40)}, 234),
-            factsRun({versionCode: '12345678901'}, 234),
-            factsRun({}, 'abc'),
-            factsRun({versionName: 'v2.45.0;rm'}, 234),
+        const bads: Array<[string, string, string]> = [
+            ['2.45.0\nX=1', '1234', '234'], ['v2.45.0;rm', '1234', '234'], ['', '1234', '234'], ['1.' + '0'.repeat(40), '1234', '234'], ['1.2.3 ', '1234', '234'], ['a.b', '1234', '234'], ['1..2', '1234', '234'],
+            ['2.45.0', '12345678901', '234'], ['2.45.0', '12a', '234'], ['2.45.0', '', '234'],
+            ['2.45.0', '1234', 'abc'], ['2.45.0', '1234', ''], ['2.45.0', '1234', '12345678901'], ['2.45.0', '1234', '-1'],
         ];
-        for (const b of bads) {
-            expect(b.r.rc).toBe(1);
-            expect(fs.existsSync(b.out)).toBe(false);
+        for (const [v, vc, run] of bads) {
+            const x = factsRun(v, vc, run);
+            expect([JSON.stringify([v, vc, run]), x.r.rc]).toEqual([JSON.stringify([v, vc, run]), 1]);
+            expect(fs.existsSync(x.out)).toBe(false);
         }
     });
 });
