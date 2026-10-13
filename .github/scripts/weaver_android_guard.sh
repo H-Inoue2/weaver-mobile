@@ -3,6 +3,8 @@
 #
 # 使い方: weaver_android_guard.sh <サブコマンド> [--名前 値 ...]
 #   サブコマンド: mode | ag1 .. ag10 | abi | sdk | baseline | pre | post
+#   post の --signing は「このAABに署名が有るか」、--signing-mode は「リポジトリの署名モード（目印で決まる）」。後者の既定は --signing と同じ。
+#   署名モードが signed の post では、許可リストの（b）が未固定（B-PENDING）なら違反にする（signed でのみ許可リストの未固定を許さない）。
 #   オプションは `--名前 値` の形のみ（`--名前=値` は不可）。同じオプションは後勝ち。フラグは --allow-pending だけ。
 #   終了コード: 0＝合格（警告あり含む） / 1＝違反あり（全件を列挙してから終了。検査できなかった場合も違反） / 2＝使い方の誤り
 #
@@ -40,7 +42,7 @@ my $MM_PROJECT_ID          = 'api-7231322553409637977-752355';
 
 my @SUBCOMMANDS = (qw(mode ag1 ag2 ag3 ag4 ag5 ag6 ag7 ag8 ag9 ag10 abi sdk baseline pre post));
 my %VALUE_OPT = map { $_ => 1 } qw(
-    root dir mode signing phase upload-to-play keystore-check cert-file expected-sha256 manifest allowlist kind
+    root dir mode signing signing-mode phase upload-to-play keystore-check cert-file expected-sha256 manifest allowlist kind
     application-id google-services firebase-project-id namespace hash-list cleartext user-ca gradle run-number
     app-version base abis tsc-log tsc-exit jest-json baseline
 );
@@ -908,7 +910,7 @@ sub ag10 {
         my ($tag, $p) = @$f;
         my $base = ($p =~ m{([^/]+)\z}) ? $1 : $p;
         my $named = 0;
-        if ($base =~ /\.(?:jks|p12|pem|p8|keystore)\z/i) {
+        if ($base =~ /\.(?:jks|p12|pem|p8|keystore|b64|base64)\z/i) {
             $named = 1;
         } elsif ($base =~ /\.json\z/i && ($base =~ /service[-_]?account/i || $base =~ /-adminsdk-/i)) {
             $named = 1;
@@ -1055,6 +1057,22 @@ sub baseline {
     return end_check();
 }
 
+# ---------------------------------------------------------------- 署名ありの依存解決（npm ci）
+sub npmci {
+    # 署名ありのビルドは、ロックファイルどおりに再現する npm ci --ignore-scripts で依存を入れていること（詳細設計 4.4。S4 の開始条件）
+    my (%a) = @_;
+    begin_check('NPMCI');
+    my $cf = "$a{root}/.github/actions/weaver-prepare-js/action.yml";
+    my $t = slurp($cf);
+    if (!defined $t) {
+        fail($cf, 'composite action not found or unreadable (a signed build must use npm ci)');
+    } else {
+        fail($cf, 'a signed build requires "npm ci --ignore-scripts" in the composite action') unless $t =~ /npm ci --ignore-scripts/;
+        fail($cf, 'a signed build must not use "npm install" in the composite action') if $t =~ /npm install/;
+    }
+    return end_check();
+}
+
 # ---------------------------------------------------------------- 集約
 sub common_enums {
     my %c;
@@ -1086,6 +1104,7 @@ sub run_pre {
     $total += ag8(phase => 'pre', root => $root, appid => $appid);
     $total += ag9(phase => 'pre', root => $root);
     $total += ag10(root => $root);
+    $total += npmci(root => $root) if $c{signing} eq 'signed';
     return finish('pre', $c{mode}, $c{signing}, $total);
 }
 
@@ -1100,8 +1119,9 @@ sub run_post {
     my $appid = opt('application-id', $DEFAULT_APPLICATION_ID);
     my $fpid = exists $O{'firebase-project-id'} ? $O{'firebase-project-id'} : $ENV{WEAVER_FIREBASE_PROJECT_ID};
     my $expected = exists $O{'expected-sha256'} ? $O{'expected-sha256'} : $ENV{WEAVER_EXPECTED_CERT_SHA256};
+    my $repo_mode = enum('signing-mode', $c{signing}, qw(signed unsigned));    # リポジトリの署名モード。AABの署名状態（--signing）とは別
     my $total = 0;
-    $total += ag1(kind => 'merged', manifest => "$dir/manifest.xml", allowlist => opt('allowlist', "$root/.github/android_permissions_allowlist.txt"), appid => $appid, allow_pending => ($c{signing} eq 'unsigned' ? 1 : 0));
+    $total += ag1(kind => 'merged', manifest => "$dir/manifest.xml", allowlist => opt('allowlist', "$root/.github/android_permissions_allowlist.txt"), appid => $appid, allow_pending => ($repo_mode eq 'unsigned' ? 1 : 0));
     $total += ag2(phase => 'post', root => $root, dir => $dir, mode => $c{mode}, signing => $c{signing}, appid => $appid, fpid => $fpid);
     $total += ag7(phase => 'post', dir => $dir, run_number => $run, app_version => $ver, base => $base);
     $total += ag3(phase => 'post', signing => $c{signing}, cert_file => "$dir/cert.txt", expected => $expected);

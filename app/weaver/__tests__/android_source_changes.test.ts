@@ -122,14 +122,14 @@ describe('ソース変更（詳細設計 §2.2）', () => {
         expect(d.added[0]).toContain('app_name');
     });
 
-    it('UT-293【現】.gitignore（S2で追記）: 基点からの追加は7行ちょうど・既存の *.keystore と !debug.keystore が残る・git check-ignore が7つの例を無視と判定・debug.keystore は追跡のまま', () => {
+    it('UT-293【現】.gitignore（S2で追記）: 基点からの追加は9行ちょうど・既存の *.keystore と !debug.keystore が残る・git check-ignore が7つの例を無視と判定・debug.keystore は追跡のまま', () => {
         const d = lineDiff(baseText('.gitignore'), s.read('.gitignore'));
         expect(d.removed).toEqual([]);
-        expect(d.added.map((x) => x.trim()).sort()).toEqual(['*-adminsdk-*.json', '*.jks', '*.p12', '*.p8', '*.pem', '*service-account*.json', '*service_account*.json'].sort());
+        expect(d.added.map((x) => x.trim()).sort()).toEqual(['*-adminsdk-*.json', '*.b64', '*.base64', '*.jks', '*.p12', '*.p8', '*.pem', '*service-account*.json', '*service_account*.json'].sort()); // v1.8: 9行（*.b64・*.base64 を追加）
         const t = s.read('.gitignore');
         expect(t).toMatch(/^\*\.keystore$/m);
         expect(t).toMatch(/^!debug\.keystore$/m);
-        for (const p of ['a.jks', 'b.p12', 'c.pem', 'd.p8', 'x-service-account-1.json', 'y_service_account.json', 'z-adminsdk-abc.json']) {
+        for (const p of ['a.jks', 'b.p12', 'c.pem', 'd.p8', 'k.b64', 'k.base64', 'x-service-account-1.json', 'y_service_account.json', 'z-adminsdk-abc.json']) {
             const r = s.git(['check-ignore', '-q', p]);
             expect([p, r.rc]).toEqual([p, 0]);
         }

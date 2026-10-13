@@ -81,9 +81,11 @@ describe('ワークフローの骨格（UT-250〜254）', () => {
         expect(needs('inspect')).toEqual(['build']);
         expect(needs('sign')).toEqual(['build', 'inspect', 'preflight']);
         for (const k of J) {
-            expect([k, j[k]['runs-on']]).toEqual([k, 'ubuntu-latest']);
+            expect([k, j[k]['runs-on']]).toEqual([k, 'ubuntu-24.04']); // v1.8: 版を固定。ubuntu-latest は0件
         }
         expect([j.preflight['timeout-minutes'], j.build['timeout-minutes'], j.inspect['timeout-minutes'], j.sign['timeout-minutes']]).toEqual([10, 120, 40, 20]);
+        expect(wfText()).not.toMatch(/ubuntu-latest|macos/);
+        expect(s.read(s.SMOKE)).not.toMatch(/ubuntu-latest|macos/);
         expect(j.preflight.if).toBeUndefined();
         expect(Object.keys(j).filter((k) => j[k].environment !== undefined).sort()).toEqual(['preflight', 'sign']);
         expect(j.build.outputs).toBeUndefined();

@@ -46,6 +46,8 @@ GitHub Actions の **Weaver Android AAB**（`.github/workflows/weaver-android-aa
 - **署名の有無は入力にしない**。リポジトリの状態だけで決める: `.github/android_firebase_real`（目印）が無ければ**署名なし検証ビルド**（成果物の kind は `unsigned-verification-only`。Play にはアップロードできない）。目印があり、実の `google-services.json` とアップロード鍵・Secrets（GitHub の Environment `android-upload-key`）がそろっているときだけ署名する。
 - 5つのジョブ: `verify`（型・テスト・actionlint）→ `preflight`（鍵の事前確認）→ `build`（版の注入・ガード・`bundleUnsigned`）→ `inspect`（署名前AABの全検査）→ `sign`（検査したAABと同一のsha256にだけ `jarsigner` で署名）。署名用の資格情報が見えるのは `preflight` と `sign` だけで、第三者のコードが動く `build` には渡さない。
 - ガード・検査は `.github/scripts/weaver_android_guard.sh`（権限・google-services.json・署名・namespace・ブランド・平文通信・版・rnbeta・端末種別・秘密の追跡・ABI・SDK）、`weaver_android_aab.sh`、`weaver_android_16k_check.sh`（16KBページ整列）、`weaver_android_inject_version.sh`。データは `.github/android_permissions_allowlist.txt`・`android_baseline.json`・`android_upstream_asset_hashes.txt`。
+- **versionCode は `1000 + github.run_number`**。ワークフローを作り直す・ファイル名を変えると `run_number` が1に戻り、Google Play が小さい versionCode を拒否する。作り直す・改名するときは、先に `VERSION_CODE_BASE`（`weaver-android-aab.yml` の `env`）を、Play に上げた最大の versionCode より大きくなるよう上げること。
+- 署名ありのビルド（`.github/android_firebase_real` がある状態）は、`weaver-prepare-js` が `npm ci --ignore-scripts` で依存を入れていないとガードで止まる（`package-lock.json` をクリーンにコミットしてから切り替える）。
 - 失敗したら**全ジョブを再実行**（Re-run all jobs）する。失敗したジョブだけの再実行は、成果物の名前（`run_attempt` を含む）が合わず失敗する（設計どおり）。
 - 上流の更新を取り込むときは、下の「変更したファイル一覧」の Android の行（`build.gradle`・`AndroidManifest.xml`・`network_security_config.xml`・`strings.xml`・`google-services.json`）を見直す。
 
@@ -98,7 +100,7 @@ Mattermost Mobile（Apache License 2.0）を基に、Weaver 向けに変更し�
 | `android/app/src/main/res/xml/network_security_config.xml` | 平文通信を禁止（`cleartextTrafficPermitted="false"`）。ユーザー追加CAの信頼は残す。先頭に変更表示 |
 | `android/app/src/main/res/values/strings.xml` | `app_name` を `Weaver`（`app/weaver/constants.ts` の `APP_NAME` と同じ値）に |
 | `.github/scripts/weaver_release_guard.sh` | `--shared-only`（`ios/` の検査 G1・G2 を飛ばす）を追加。既定の挙動・出力は変えていない |
-| `.gitignore` | `*.jks`・`*.p12`・`*.pem`・`*.p8`・`*service-account*.json`・`*service_account*.json`・`*-adminsdk-*.json` を追加（鍵・認証情報の誤コミット防止） |
+| `.gitignore` | `*.jks`・`*.p12`・`*.pem`・`*.p8`・`*.b64`・`*.base64`・`*service-account*.json`・`*service_account*.json`・`*-adminsdk-*.json` を追加（鍵・認証情報の誤コミット防止） |
 
 `.gitattributes` には、Android のワークフロー・データファイルを LF に固定する行も追加した（K-79）。
 

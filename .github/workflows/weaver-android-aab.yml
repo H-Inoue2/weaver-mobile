@@ -44,7 +44,7 @@ env:
 jobs:
   verify:
     name: Verify (types, tests, lint)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -94,7 +94,7 @@ jobs:
 
   preflight:
     name: Preflight (upload key check)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: ${{ github.ref == 'refs/heads/main' && 'android-upload-key' || 'android-unsigned' }}
     permissions:
@@ -162,7 +162,7 @@ jobs:
   build:
     name: Build AAB (unsigned)
     needs: [verify, preflight]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:
       contents: read
@@ -290,7 +290,7 @@ jobs:
   inspect:
     name: Inspect unsigned AAB
     needs: [build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     permissions:
       contents: read
@@ -381,7 +381,7 @@ jobs:
           WEAVER_EXPECTED_CERT_SHA256: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
         run: |
           bash .github/scripts/weaver_android_aab.sh extract --aab "$AAB" --bundletool-jar "$WEAVER_BUNDLETOOL_JAR" --signing unsigned --out "$RUNNER_TEMP/weaver-aab-pre"
-          bash .github/scripts/weaver_android_guard.sh post --dir "$RUNNER_TEMP/weaver-aab-pre" --mode "$MODE" --signing unsigned --run-number "$RUN_NUMBER" --app-version "$APP_VERSION" --base "$VERSION_CODE_BASE" --cleartext forbid
+          bash .github/scripts/weaver_android_guard.sh post --dir "$RUNNER_TEMP/weaver-aab-pre" --mode "$MODE" --signing unsigned --signing-mode "$(bash .github/scripts/weaver_android_guard.sh mode)" --run-number "$RUN_NUMBER" --app-version "$APP_VERSION" --base "$VERSION_CODE_BASE" --cleartext forbid
 
       - name: 16KB alignment
         run: bash .github/scripts/weaver_android_16k_check.sh "$RUNNER_TEMP/weaver-aab-pre/universal.apk"
@@ -408,7 +408,7 @@ jobs:
   sign:
     name: Sign AAB
     needs: [preflight, build, inspect]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: ${{ github.ref == 'refs/heads/main' && 'android-upload-key' || 'android-unsigned' }}
     permissions:
