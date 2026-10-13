@@ -84,6 +84,11 @@ function write(root, rel, content, enc) {
     const p = path.join(root, rel);
     fs.mkdirSync(path.dirname(p), {recursive: true});
     fs.writeFileSync(p, content, enc);
+    // シェバン（#!）で始まるファイルは実行可能にする。Linux では実行ビットが無いスタブ・擬似ツールは rc=126（Permission denied）になり、
+    // PATH 検索でも飛ばされる（CI の ubuntu-24.04 で判明。Windows の Git Bash は実行ビットを見ないため差が出なかった）
+    if (typeof content === 'string' && content.startsWith('#!')) {
+        fs.chmodSync(p, 0o755);
+    }
     return p;
 }
 function readAt(root, rel) {
