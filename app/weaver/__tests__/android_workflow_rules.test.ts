@@ -221,7 +221,7 @@ function eqCompareStep() {
     }
     throw new Error('同等性ワークフローに比較のステップ（META-INF の扱いを含む run:）が無い');
 }
-function eqRun(r: Record<string, string>, sRef: Record<string, string>, e: string[]) {
+function eqRun(r: Record<string, string>, sRef: Record<string, string>, e: string[], o: {k?: string[] | null; omit?: string[]} = {}) {
     const work = s.tmp('k79-eq-');
     for (const [k, v] of Object.entries(r)) {
         s.write(work, 'R/' + k, v);
@@ -230,44 +230,79 @@ function eqRun(r: Record<string, string>, sRef: Record<string, string>, e: strin
         s.write(work, 'S/' + k, v);
     }
     s.write(work, 'E.txt', e.join('\n') + (e.length ? '\n' : ''));
-    return w.runStep(eqCompareStep(), {cwd: work, env: {R_DIR: s.posix(path.join(work, 'R')), S_DIR: s.posix(path.join(work, 'S')), E_FILE: s.posix(path.join(work, 'E.txt'))}});
+    const env: Record<string, string> = {R_DIR: s.posix(path.join(work, 'R')), S_DIR: s.posix(path.join(work, 'S')), E_FILE: s.posix(path.join(work, 'E.txt'))};
+    if (o.k) {
+        s.write(work, 'K.txt', o.k.join('\n') + '\n');
+        env.K_FILE = s.posix(path.join(work, 'K.txt'));
+    }
+    for (const k of o.omit || []) {
+        delete env[k];
+    }
+    const x = w.runStep(eqCompareStep(), {cwd: work, env});
+    return {...x, all: x.out + x.err};
 }
 const MAIN4 = {'base/manifest/AndroidManifest.xml': 'm', 'base/resources.pb': 'r', 'base/dex/classes.dex': 'd', 'base/lib/arm64-v8a/liba.so': 'so'};
-describe('UT-349 同等性の比較ロジック（Eの規則・META-INF の扱い）', () => {
-    it('①ルート直下 META-INF だけ違う→rc=0 ②本体の1エントリ違う→rc≠0（名前と両sha256）③E に入っている dependencies.pb だけ違う→rc=0 ④エントリの有無が違う→rc≠0 ⑤E が空で META-INF 以外が同一→rc=0 ⑥base/root/META-INF/MANIFEST.MF だけ違う→rc≠0 ⑦主要4エントリが無い→rc≠0', () => {
-        const dep = 'BUNDLE-METADATA/com.android.tools.build.libraries/dependencies.pb';
-        expect(eqRun({...MAIN4, 'META-INF/A.SF': '1'}, {...MAIN4, 'META-INF/A.SF': '2'}, []).rc).toBe(0);
+const DEP = 'BUNDLE-METADATA/com.android.tools.build.libraries/dependencies.pb';
+describe('UT-349 同等性の比較ステップ（詳細設計§4.9.2。R_DIR・S_DIR・E_FILE・K_FILE任意。出力 OK compared=n／FAIL: <パス> R=<sha> S=<sha>）', () => {
+    it('①ルート直下 META-INF だけ違う→rc=0・OK compared=4 ②本体の1エントリ違う→rc=1・FAIL: <パス> R=<sha256> S=<sha256> ③E に入っている dependencies.pb だけ違う→rc=0 ④エントリの有無が違う→rc=1 ⑤E が空で同一→rc=0 ⑥base/root/META-INF/MANIFEST.MF だけ違う→rc=1 ⑦主要4エントリが無い→rc=1', () => {
+        const a = eqRun({...MAIN4, 'META-INF/A.SF': '1'}, {...MAIN4, 'META-INF/A.SF': '2'}, []);
+        expect(a.rc).toBe(0);
+        expect(a.all).toContain('OK compared=4');
         const two = eqRun({...MAIN4}, {...MAIN4, 'base/manifest/AndroidManifest.xml': 'X'}, []);
-        expect(two.rc).not.toBe(0);
-        expect(two.out + two.err).toContain('base/manifest/AndroidManifest.xml');
-        expect(eqRun({...MAIN4, [dep]: '1'}, {...MAIN4, [dep]: '2'}, [dep]).rc).toBe(0);
-        expect(eqRun({...MAIN4, extra: 'x'}, {...MAIN4}, []).rc).not.toBe(0);
+        expect(two.rc).toBe(1);
+        expect(two.all).toMatch(/FAIL: base\/manifest\/AndroidManifest\.xml R=[0-9a-f]{64} S=[0-9a-f]{64}/);
+        expect(eqRun({...MAIN4, [DEP]: '1'}, {...MAIN4, [DEP]: '2'}, [DEP]).rc).toBe(0);
+        expect(eqRun({...MAIN4, extra: 'x'}, {...MAIN4}, []).rc).toBe(1);
         expect(eqRun({...MAIN4}, {...MAIN4}, []).rc).toBe(0);
-        expect(eqRun({...MAIN4, 'base/root/META-INF/MANIFEST.MF': '1'}, {...MAIN4, 'base/root/META-INF/MANIFEST.MF': '2'}, []).rc).not.toBe(0);
-        expect(eqRun({'x/y': '1'}, {'x/y': '1'}, []).rc).not.toBe(0);
+        expect(eqRun({...MAIN4, 'base/root/META-INF/MANIFEST.MF': '1'}, {...MAIN4, 'base/root/META-INF/MANIFEST.MF': '2'}, []).rc).toBe(1);
+        expect(eqRun({'x/y': '1'}, {'x/y': '1'}, []).rc).toBe(1);
+    });
+    it('⑧使い方の誤り: R_DIR／S_DIR／E_FILE が未設定は rc=2。E_FILE の空行・# 行は無視。違反は全件出す', () => {
+        for (const k of ['R_DIR', 'S_DIR', 'E_FILE']) {
+            expect([k, eqRun({...MAIN4}, {...MAIN4}, [], {omit: [k]}).rc]).toEqual([k, 2]);
+        }
+        expect(eqRun({...MAIN4, [DEP]: '1'}, {...MAIN4, [DEP]: '2'}, ['# 理由', '', DEP]).rc).toBe(0);
+        const both = eqRun({...MAIN4, a: '1', b: '1'}, {...MAIN4, a: '2', b: '2'}, []);
+        expect(both.rc).toBe(1);
+        expect((both.all.match(/FAIL:/g) || []).length).toBe(2);
+    });
+    it('K_FILE: ①K に入れた classes.dex だけの差→rc=0 ②未設定で classes.dex が違う→rc=1 ③K が2件→rc=1 ④K が dex 以外→rc=1 ⑤K のエントリが両側に無い→rc=1', () => {
+        const dx = 'base/dex/classes.dex';
+        expect(eqRun({...MAIN4}, {...MAIN4, [dx]: 'D2'}, [], {k: [dx]}).rc).toBe(0);
+        expect(eqRun({...MAIN4}, {...MAIN4, [dx]: 'D2'}, []).rc).toBe(1);
+        expect(eqRun({...MAIN4, 'base/dex/classes2.dex': 'a'}, {...MAIN4, [dx]: 'D2', 'base/dex/classes2.dex': 'b'}, [], {k: [dx, 'base/dex/classes2.dex']}).rc).toBe(1);
+        expect(eqRun({...MAIN4}, {...MAIN4, 'base/resources.pb': 'X'}, [], {k: ['base/resources.pb']}).rc).toBe(1);
+        expect(eqRun({...MAIN4}, {...MAIN4}, [], {k: ['base/dex/classes9.dex']}).rc).toBe(1);
     });
 });
-describe('UT-363 同等性の除外一覧 E の規則', () => {
+describe('UT-363 同等性の除外一覧 E の規則（詳細設計§4.9.2 E・判定⑤）', () => {
     const dep = (n: string) => `BUNDLE-METADATA/${n}`;
     const diff = (paths: string[]) => eqRun({...MAIN4, ...Object.fromEntries(paths.map((p) => [p, '1']))}, {...MAIN4, ...Object.fromEntries(paths.map((p) => [p, '2']))}, paths);
-    it('①1件②BUNDLE-METADATA/配下5件ちょうどは rc=0、③6件は rc≠0、④dex・⑤BundleConfig.pb・⑥本体6種・⑦base/root/META-INF が E に入ったら rc≠0、⑧E が空は rc=0', () => {
+    it('①1件②BUNDLE-METADATA/配下5件ちょうどは rc=0、③6件は rc=1（FAIL: E:）、④dex・⑤BundleConfig.pb・⑥本体各種・⑦base/root/META-INF が E に入ったら rc=1（FAIL: E: <パス>）、⑧E が空は rc=0', () => {
         expect(diff([dep('com.android.tools.build.libraries/dependencies.pb')]).rc).toBe(0);
         expect(diff([1, 2, 3, 4, 5].map((i) => dep('a' + i))).rc).toBe(0);
-        expect(diff([1, 2, 3, 4, 5, 6].map((i) => dep('a' + i))).rc).not.toBe(0);
+        const six = diff([1, 2, 3, 4, 5, 6].map((i) => dep('a' + i)));
+        expect(six.rc).toBe(1);
+        expect(six.all).toContain('FAIL: E:');
         for (const p of ['base/dex/classes.dex', 'BundleConfig.pb', 'base/assets/x', 'base/res/x', 'base/lib/arm64-v8a/x.so', 'base/root/x', 'base/manifest/AndroidManifest.xml', 'base/resources.pb', 'base/root/META-INF/MANIFEST.MF']) {
             const r = diff([p]);
-            expect([p, r.rc !== 0]).toEqual([p, true]);
+            expect([p, r.rc]).toEqual([p, 1]);
+            expect(r.all).toContain('FAIL: E: ' + p);
         }
         expect(eqRun({...MAIN4}, {...MAIN4}, []).rc).toBe(0);
     });
 });
-describe('UT-364 同等性の K の規則（BuildConfig を含む dex 1本だけを dexdump -d の正規化で比較）', () => {
-    it('比較ロジックが同等性ワークフローに存在し、BUILD_TYPE の1種類の差だけを許す（①〜⑧は実装後に fixture で検証。実装前は比較ステップが無く失敗する）', () => {
+describe('UT-364 同等性の K の規則（BuildConfig を含む dex 1本だけ。K_FILE は1件以下で classes*.dex だけ）', () => {
+    it('比較ステップは K_FILE を読み、K に無い dex の差を拒否する。dexdump -d の正規化（string@ 等の除去）と BUILD_TYPE の差だけを許す処理が同等性ワークフローに存在する（正規化の fixture 検証は実装後）', () => {
+        const dx = 'base/dex/classes.dex';
+        expect(eqRun({...MAIN4}, {...MAIN4, [dx]: 'D2'}, [], {k: [dx]}).rc).toBe(0);
+        expect(eqRun({...MAIN4}, {...MAIN4, [dx]: 'D2'}, []).rc).toBe(1);
         const d = w.load(branchFile(EQ_BRANCH, '.github/workflows/weaver-android-equivalence-trial.yml'));
         const t = JSON.stringify(d);
-        expect(t).toContain('dexdump');
+        expect(t).toContain('dexdump -d');
         expect(t).toMatch(/BUILD_TYPE/);
-        expect(t).toMatch(/string@|type@|field@|method@|proto@/);
+        expect(t).toMatch(/string@/);
+        expect(t).toMatch(/type@|field@|method@|proto@/);
     });
 });
 
@@ -479,7 +514,7 @@ describe('UT-369 G8（鍵の削除と不在確認）の run: 本文', () => {
         if (o.exists !== false) {
             fs.writeFileSync(key, 'KEYBYTES');
         }
-        const env: Record<string, string> = {WEAVER_KEYSTORE_PASSWORD: 'CANARY_PW_9f3a'};
+        const env: Record<string, string> = {};
         if (o.path !== null) {
             env.WEAVER_KEYSTORE_PATH = o.path ?? s.posix(key);
         }
@@ -504,7 +539,7 @@ describe('UT-369 G8（鍵の削除と不在確認）の run: 本文', () => {
         const e = g8({exists: false});
         expect(e.r.rc).toBe(0);
         for (const x of [a, e]) {
-            expect(x.r.out + x.r.err).not.toContain('CANARY_PW_9f3a');
+            expect(x.r.out + x.r.err).not.toMatch(/PASSWORD/);
         }
     });
 });
@@ -565,5 +600,48 @@ describe('UT-373 第三者アクション（uses:）の要件', () => {
         const m3 = w.mutate(d, (x: any) => (w.step(x, 'inspect', 'I6').with.path = '${{ runner.temp }}'));
         expect(w.step(m3, 'inspect', 'I6').with.path).toBe('${{ runner.temp }}');
         expect(w.str(w.step(d, 'inspect', 'I6').with.path)).toMatch(/\/in$/);
+    });
+});
+
+// ---- §4.3.4 run: 本文が読む環境変数の全数（D-T46。表に無い名前を読まない）----
+const READS: Record<string, string[]> = {
+    'preflight/Decide signing mode': [], 'build/Decide signing mode': [], 'inspect/Decide signing mode': [], 'sign/Decide signing mode': [],
+    'preflight/Restore upload keystore': ['ANDROID_KEYSTORE_BASE64'], 'sign/Restore upload keystore': ['ANDROID_KEYSTORE_BASE64'],
+    'preflight/Check upload key (AG3 pre)': ['WEAVER_KEYSTORE_FILE', 'WEAVER_KEYSTORE_PASSWORD', 'WEAVER_KEY_ALIAS', 'MODE', 'UPLOAD_TO_PLAY', 'WEAVER_EXPECTED_CERT_SHA256'],
+    'inspect/Locate Android tools': ['ANDROID_HOME'],
+    'inspect/Install bundletool': ['BUNDLETOOL_VERSION', 'BUNDLETOOL_SHA256'],
+    'inspect/Verify input AAB': ['AAB'],
+    'inspect/Pre-sign checks': ['AAB', 'MODE', 'RUN_NUMBER', 'APP_VERSION', 'VERSION_CODE_BASE', 'WEAVER_FIREBASE_PROJECT_ID', 'WEAVER_EXPECTED_CERT_SHA256', 'WEAVER_BUNDLETOOL_JAR', 'WEAVER_KEYTOOL', 'WEAVER_AAPT2', 'WEAVER_ZIPALIGN', 'WEAVER_DEXDUMP', 'WEAVER_OBJDUMP'],
+    'inspect/16KB alignment': ['WEAVER_ZIPALIGN', 'WEAVER_OBJDUMP'],
+    'inspect/Output checked sha256': ['AAB'],
+    'inspect/Facts artifact': ['RUN_NUMBER'],
+    'sign/Verify AAB hash': ['AAB', 'CHECKED_SHA256'],
+    'sign/Sign AAB (jarsigner)': ['AAB', 'WEAVER_KEYSTORE_FILE', 'WEAVER_KEYSTORE_PASSWORD', 'WEAVER_KEY_ALIAS'],
+    'sign/Delete keystore and confirm': ['WEAVER_KEYSTORE_PATH'],
+    'sign/Verify signature': ['AAB'],
+    'sign/Check certificate': ['AAB', 'WEAVER_EXPECTED_CERT_SHA256'],
+    'sign/Summary and final files': ['SIGNING', 'MODE', 'APP_VERSION', 'VERSION_CODE_BASE', 'RUN_NUMBER', 'AAB'],
+};
+describe('UT-261ほか §4.3.4: run: 本文が読む環境変数は全数表の名前だけ', () => {
+    it('各ステップの run: が読む大文字の変数は、表の名前・本文内で代入した名前・GITHUB_*・RUNNER_*・JAVA_HOME だけ', () => {
+        const d = doc();
+        const bad: string[] = [];
+        for (const [key, allowed] of Object.entries(READS)) {
+            const [job, name] = key.split('/');
+            const st = d.jobs[job].steps.find((x: any) => x.name === name);
+            if (!st) {
+                bad.push(key + ': ステップが無い');
+                continue;
+            }
+            const body = w.runOf(st);
+            const assigned = new Set([...body.matchAll(/(?:^|[\s;])(?:local\s+|export\s+)?([A-Z][A-Z0-9_]*)=/gm)].map((m: any) => m[1]));
+            for (const m of body.matchAll(/\$\{?([A-Z][A-Z0-9_]*)\}?/g)) {
+                const v = (m as any)[1];
+                if (!allowed.includes(v) && !assigned.has(v) && !/^(GITHUB_|RUNNER_)/.test(v) && !['JAVA_HOME', 'PATH', 'HOME'].includes(v)) {
+                    bad.push(`${key}: 表に無い変数 ${v}`);
+                }
+            }
+        }
+        expect(bad).toEqual([]);
     });
 });

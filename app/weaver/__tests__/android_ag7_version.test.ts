@@ -4,8 +4,7 @@
 // K-79/R0 単体テスト（工程8①）: AG7 版（UT-135〜147・341・355）。詳細設計 §5.3.7・§5.5
 // versionCode は 1000+run_number と一致（基準は --base。既定 1000）。宣言形の定義（D-K79R0-36）:
 //   行頭（空白を除く）が語 versionCode で直後が空白・=・( のもの／左辺が <識別子>.versionCode の代入。読み取り・別名は宣言形でない。
-// ※UT-143 の元の入力（def x = { versionCode(5) }）は行頭が def で宣言形の定義に当たらないため、
-//   行頭の versionCode(5) に直して書いた（設計との食い違いは D-T43 として返す）。
+// ※UT-143・204 の入力は元の `def x = { versionCode(5) }`（詳細設計v1.3: 宣言形に「同じ行の { ・ ; の直後」を追加＝D-K79R0-71）。
 
 export {};
 
@@ -66,8 +65,8 @@ describe('AG7 版（pre）', () => {
         expect(ag7(g, 1).rc).toBe(0);
     });
 
-    it('UT-143 versionCode 1001 の他に行頭の versionCode(5)（宣言形）がある: rc=1（宣言形は1件だけ）', () => {
-        const g = s.buildGradle({versionCodeLines: ['        versionCode 1001', '        versionCode(5)']});
+    it('UT-143 versionCode 1001 の他に def x = { versionCode(5) }（同じ行の { の直後の宣言形。v1.3）がある: rc=1（宣言形は1件だけ）', () => {
+        const g = s.buildGradle({versionCodeLines: ['        versionCode 1001', '        def x = { versionCode(5) }']});
         expect(ag7(g, 1).rc).toBe(1);
     });
 

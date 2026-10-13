@@ -111,8 +111,8 @@ describe('inject_version（詳細設計 §5.5）', () => {
         }
     });
 
-    it('UT-204 正規表現に当たらない宣言形（行頭の versionCode(5)）が別にある状態で注入: 事後検査で失敗し rc=1・ファイルは元の sha256 に戻る', () => {
-        const f = put(s.buildGradle({versionCodeLines: ['        versionCode 817', '        versionCode(5)']}));
+    it('UT-204 正規表現に当たらない宣言形（def x = { versionCode(5) }）が別にある状態で注入: 事後検査で失敗し rc=1・ファイルは元の sha256 に戻る', () => {
+        const f = put(s.buildGradle({versionCodeLines: ['        versionCode 817', '        def x = { versionCode(5) }']}));
         const h = s.sha256File(f);
         const r = s.inject(args(f));
         expect(r.rc).toBe(1);

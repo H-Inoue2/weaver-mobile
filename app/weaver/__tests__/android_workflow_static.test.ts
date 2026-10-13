@@ -4,7 +4,7 @@
 // K-79/R0 単体テスト（工程8①）: weaver-android-aab.yml の静的検査（構造）
 //   UT-250〜276・324・335〜337・344・360・361・370。詳細設計 §4.1〜§4.6
 // 規則そのもの（秘密・環境ファイル・実行ファイルの許可）と改造コピーは android_workflow_rules.test.ts。
-// ※UT-271 の inspect は設計書の本文が「@v4でよい」だが、UT-345⑦・UT-373 は inspect もSHA固定。新しい方（v0.7）に従う（D-T42）。
+// ※UT-271 の inspect は設計書の本文が「@v4でよい」だが、UT-345⑦・UT-373 は inspect もSHA固定。詳細設計v1.3で inspect もSHA固定に確定（D-T42解消）。
 
 export {};
 

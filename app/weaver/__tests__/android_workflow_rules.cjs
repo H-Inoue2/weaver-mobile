@@ -308,7 +308,8 @@ function mutate(doc, fn) {
 function runStep(st, o = {}) {
     const work = o.cwd || s.tmp('k79-step-');
     const script = s.write(work, '.step.sh', runOf(st) + '\n');
-    const env = {...process.env, ...(o.env || {})};
+    const base = {PATH: process.env.PATH, SYSTEMROOT: process.env.SYSTEMROOT, TEMP: process.env.TEMP, TMP: process.env.TMP, HOME: process.env.HOME};
+    const env = {...base, ...(o.env || {})};
     if (o.stubDir) {
         env.PATH = s.posix(o.stubDir) + path.delimiter + env.PATH;
         env.STUB_LOG = s.posix(path.join(o.stubDir, 'stub.log'));
