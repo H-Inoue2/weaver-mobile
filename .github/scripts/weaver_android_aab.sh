@@ -105,7 +105,7 @@ sub run_to_file {
         open(STDOUT, '>', $file) or POSIX::_exit(127);
         binmode(STDOUT);
         open(STDERR, '>', File::Spec->devnull()) or POSIX::_exit(127);
-        exec(@cmd);
+        { no warnings 'exec'; exec(@cmd); }
         POSIX::_exit(127);
     }
     waitpid($pid, 0);
@@ -328,6 +328,7 @@ sub cmd_extract {
         my $v;
         if ($rrc == 0) {
             if ($rtext =~ /^string\/\Q$name\E:\s*(.*?)\s*$/m) { $v = $1; }
+            elsif ($rtext =~ /\(default\)\s*-\s*\[STR\]\s*"(.*?)"\s*$/m) { $v = $1; }    # bundletool 1.18.3 の実出力: (default) - [STR] "値"
             elsif ($rtext =~ /\bValue:\s*"(.*?)"\s*$/m) { $v = $1; }
         }
         if (!defined $v || $v eq '') { fail("resources: string/$name was not found in the AAB (rc=$rrc)"); }

@@ -49,7 +49,7 @@ sub run_capture {
         close($r);
         open(STDOUT, '>&', $w);
         open(STDERR, '>&', $w);
-        exec(@cmd) or exit 127;
+        { no warnings 'exec'; exec(@cmd) or exit 127; }
     }
     close($w);
     local $/;

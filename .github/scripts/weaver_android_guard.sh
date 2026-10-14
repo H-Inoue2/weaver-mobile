@@ -160,7 +160,7 @@ sub run_capture {
         close($r);
         open(STDOUT, '>&', $w);
         open(STDERR, '>&', $w);
-        exec(@cmd) or exit 127;
+        { no warnings 'exec'; exec(@cmd) or exit 127; }
     }
     close($w);
     local $/;
@@ -279,6 +279,8 @@ sub ag1 {
             my $type = attr_of($at, 'android:foregroundServiceType');
             next unless defined $type;
             my @types = grep { $_ ne '' } map { s/\A\s+|\s+\z//gr } split(/\|/, $type);
+            # bundletool dump manifest は種別を16進の数値（dataSync＝0x00000001）で出す。数値のときは dataSync のビット(1)だけかを見る
+            @types = ($type =~ /\A\s*0x0*1\s*\z/i) ? ('dataSync') : @types if $type =~ /\A\s*0x[0-9a-fA-F]+\s*\z/;
             if (grep { $_ ne 'dataSync' } @types or !@types) {
                 my $sn = attr_of($at, 'android:name');
                 fail($where, "foreground service type must be dataSync only: service " . (defined $sn ? $sn : '(unnamed)') . " has $type");
