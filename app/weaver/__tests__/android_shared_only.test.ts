@@ -120,8 +120,8 @@ describe('--shared-only（詳細設計 §5.4）', () => {
         expect(head).toContain('--shared-only');
         const was = new Set(s.gitShowText(s.BASE_SHA, '.github/scripts/weaver_release_guard.sh').split('\n'));
         const cur = new Set(now.split('\n'));
-        const removed = [...was].filter((l) => !cur.has(l) && l.trim() !== '');
-        const header = removed.filter((l) => /^#/.test(l));
+        const removed = [...was].filter((l: string) => !cur.has(l) && l.trim() !== '');
+        const header = removed.filter((l: string) => /^#/.test(l));
         expect(header).toEqual([]);
     });
 });

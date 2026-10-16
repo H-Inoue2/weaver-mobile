@@ -102,7 +102,7 @@ describe('データファイル（詳細設計 §5.8）', () => {
         const now = s.read('.gitattributes').split('\n');
         const added = now.filter((l: string) => l.trim() && !base.has(l));
         expect(added.sort()).toEqual(['.github/actions/weaver-prepare-js/action.yml text eol=lf', '.github/android_* text eol=lf', '.github/workflows/weaver-android-*.yml text eol=lf'].sort());
-        const gone = [...base].filter((l) => l.trim() && !now.includes(l));
+        const gone = [...base].filter((l: string) => l.trim() && !now.includes(l));
         expect(gone).toEqual([]);
         expect(now).toContain('.github/scripts/*.sh text eol=lf');
     });
@@ -178,7 +178,7 @@ describe('データファイル（詳細設計 §5.8）', () => {
         const all = s.read(s.SCRIPTS.aab) + s.read(s.SCRIPTS.k16) + s.read(s.SCRIPTS.guard) + s.read(s.WORKFLOW);
         const found = new Set((all.match(/WEAVER_(KEYTOOL|AAPT2|ZIPALIGN|DEXDUMP|OBJDUMP|[A-Z0-9_]*TOOL[A-Z0-9_]*)\b/g) || []));
         for (const f of found) {
-            expect([f, [...keys, 'WEAVER_BUNDLETOOL_JAR'].includes(f)]).toEqual([f, true]);
+            expect([f, [...keys, 'WEAVER_BUNDLETOOL_JAR'].includes(f as string)]).toEqual([f, true]);
         }
     });
 

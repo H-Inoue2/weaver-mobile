@@ -186,8 +186,10 @@ describe('AG3 post（署名後の証明書。詳細設計 §5.3.3）', () => {
     });
 
     it('UT-356 post --signing unsigned の意味と ag3 post --signing signed の意味（署名なしを確かめる／登録の証明書で署名済み）', () => {
-        const dUnsigned = s.extractDir({signed: false});
-        const dSigned = s.extractDir({signed: true});
+        // 実リポジトリの許可リストの（b）6件（merged は (a)∪(b) の完全一致）。既定の extractDir の (b) 2件に4件を足す
+        const B4 = [['android.permission.USE_BIOMETRIC'], ['android.permission.USE_FINGERPRINT'], ['com.google.android.c2dm.permission.RECEIVE'], ['com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE']];
+        const dUnsigned = s.extractDir({signed: false, extraPerms: B4});
+        const dSigned = s.extractDir({signed: true, extraPerms: B4});
         const common = ['--mode', 'confirm', '--run-number', '1', '--app-version', '2.45.0', '--cleartext', 'forbid'];
         const a = s.guard(['post', '--dir', s.posix(dUnsigned), '--signing', 'unsigned', ...common]);
         const b = s.guard(['post', '--dir', s.posix(dSigned), '--signing', 'unsigned', ...common]);

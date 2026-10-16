@@ -61,9 +61,9 @@ describe('inject_version（詳細設計 §5.5）', () => {
             const ra = v.split(/(?<=\n)/);
             const rb = after.split(/(?<=\n)/);
             expect(rb).toHaveLength(ra.length);
-            const changed = ra.filter((l, i) => l !== rb[i]);
+            const changed = ra.filter((l: string, i: number) => l !== rb[i]);
             expect(changed.length).toBe(1 + (v.includes('versionName') ? 0 : 0) || 2);
-            expect(changed.every((l) => /version(Code|Name)/.test(l))).toBe(true);
+            expect(changed.every((l: string) => /version(Code|Name)/.test(l))).toBe(true);
             const indent = (/^([ \t]*)versionCode/m.exec(v) || [])[1];
             expect(/^([ \t]*)versionCode/m.exec(after)![1]).toBe(indent);
         }

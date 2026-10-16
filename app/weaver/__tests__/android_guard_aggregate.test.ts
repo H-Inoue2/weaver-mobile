@@ -163,9 +163,9 @@ const jobsOf = () => (s.exists(s.WORKFLOW) ? Object.keys((yaml.load(s.read(s.WOR
 const eq = (a: string[], b: string[]) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
 const scriptsAll = () => [s.SCRIPTS.guard, s.SCRIPTS.inject, s.SCRIPTS.aab, s.SCRIPTS.k16].every((r) => s.exists(r));
 const scriptsNone = () => [s.SCRIPTS.guard, s.SCRIPTS.inject, s.SCRIPTS.aab, s.SCRIPTS.k16].every((r) => !s.exists(r));
-const gitignoreOk = () => ['*.jks', '*.p12', '*.pem', '*.p8', '*service-account*.json', '*service_account*.json', '*-adminsdk-*.json'].every((p) => lines('.gitignore').some((l) => l.trim() === p));
-const gitignoreNone = () => !lines('.gitignore').some((l) => l.trim() === '*.p8');
-const attrOk = () => ['.github/android_* text eol=lf', '.github/workflows/weaver-android-*.yml text eol=lf', '.github/actions/weaver-prepare-js/action.yml text eol=lf'].every((p) => lines('.gitattributes').some((l) => l.trim() === p));
+const gitignoreOk = () => ['*.jks', '*.p12', '*.pem', '*.p8', '*service-account*.json', '*service_account*.json', '*-adminsdk-*.json'].every((p) => lines('.gitignore').some((l: string) => l.trim() === p));
+const gitignoreNone = () => !lines('.gitignore').some((l: string) => l.trim() === '*.p8');
+const attrOk = () => ['.github/android_* text eol=lf', '.github/workflows/weaver-android-*.yml text eol=lf', '.github/actions/weaver-prepare-js/action.yml text eol=lf'].every((p) => lines('.gitattributes').some((l: string) => l.trim() === p));
 const equivAbsent = () => {
     const refs = s.git(['for-each-ref', '--format=%(refname)']).out.toString().split('\n').filter(Boolean);
     return refs.every((ref: string) => s.git(['ls-tree', '-r', '--name-only', ref, '--', '.github/workflows/weaver-android-equivalence-trial.yml']).out.toString().trim() === '');
