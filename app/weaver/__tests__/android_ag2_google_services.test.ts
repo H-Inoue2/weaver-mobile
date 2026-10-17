@@ -166,9 +166,26 @@ describe('AG2 google-services.json（pre）', () => {
         expect(s.warnLines(d, 'AG2').length).toBeGreaterThanOrEqual(1);
     });
 
-    it('UT-065【現】作成予定のダミー google-services.json（S1後）の中身が設計 §3.4 のとおり', () => {
+    it('UT-065【現】google-services.json の現行の中身（S1〜S3＝設計 §3.4 のダミー／S4＝実キー形式。値は出力しない）', () => {
         const text = s.read('android/app/google-services.json');
         const j = JSON.parse(text);
+        if (s.stage() === 'S4') {
+            // 段階ゲート（詳細設計 §1.4）: S4 は実キー。値が失敗メッセージに出ないよう、真偽値だけを比較する
+            expect(text.includes('DUMMY')).toBe(false);
+            expect(text.includes('com.mattermost')).toBe(false);
+            expect(text.includes('7231322553409637977')).toBe(false);
+            expect(j.project_info.project_id === 'weaver-mobile').toBe(true);
+            expect(j.client).toHaveLength(1);
+            const rc = j.client[0];
+            expect(rc.client_info.android_client_info.package_name === 'com.metarchitect.Weaver').toBe(true);
+            expect(typeof rc.client_info.mobilesdk_app_id === 'string' && rc.client_info.mobilesdk_app_id.length > 0).toBe(true);
+            expect(typeof rc.api_key[0].current_key === 'string' && rc.api_key[0].current_key.length > 0).toBe(true);
+            // 目印（空ファイル）と同じ木で、ガード AG2 が署名あり・提出用で通る（実キー形式・project_id 一致。出力は rc だけを見る）
+            expect(s.exists('.github/android_firebase_real')).toBe(true);
+            const g = s.guard(['ag2', '--mode', 'submission', '--signing', 'signed', '--firebase-project-id', 'weaver-mobile']);
+            expect(g.rc).toBe(0);
+            return;
+        }
         expect(j.project_info.project_number).toBe('000000000000');
         expect(j.project_info.project_id).toBe('DUMMY-weaver-unsigned-verification');
         expect(j.client).toHaveLength(1);

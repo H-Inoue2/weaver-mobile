@@ -13,11 +13,10 @@ runs:
         node-version-file: .nvmrc
         cache: npm
 
-    # S1-S3: npm install (same as the iOS workflow). S4 switches this to the lockfile-exact command
-    # once package-lock.json is committed cleanly (K-79 detailed design 4.4).
+    # S4: lockfile-exact install (K-79 detailed design 4.4). package-lock.json is committed cleanly.
     - name: Install npm packages
       shell: bash
-      run: npm install --ignore-scripts
+      run: npm ci --ignore-scripts
 
     - name: Copy icon font
       shell: bash

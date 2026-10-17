@@ -1,27 +1,28 @@
 {
   "project_info": {
-    "project_number": "000000000000",
-    "project_id": "DUMMY-weaver-unsigned-verification"
+    "project_number": "657701535594",
+    "project_id": "weaver-mobile",
+    "storage_bucket": "weaver-mobile.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:000000000000:android:DUMMY0000000000000000",
+        "mobilesdk_app_id": "1:657701535594:android:40935880462aef08246f13",
         "android_client_info": {
           "package_name": "com.metarchitect.Weaver"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "DUMMY-client-id",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "DUMMY-NOT-A-REAL-API-KEY"
+          "current_key": "AIzaSyAFKVndEYmzPLRvdeHD3fjz4P_jBGmahYE"
         }
-      ]
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
     }
   ],
   "configuration_version": "1"

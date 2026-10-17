@@ -279,12 +279,14 @@ describe('post が ag1 へ --allow-pending を渡す条件（詳細設計 §5.2�
             const al = s.write(d, 'allow.txt', pendingAllow);
             return {d, al};
         };
+        // --root は目印なしのフィクスチャの木（実リポジトリは S4 以降は目印ありで AG2 の期待が変わるため使わない）
+        const root = s.posix(s.goodTree());
         const u = mk(false);
-        const ru = s.guard(['post', '--dir', s.posix(u.d), '--mode', 'confirm', '--signing', 'unsigned', '--run-number', '1', '--app-version', '2.45.0', '--allowlist', s.posix(u.al), '--cleartext', 'forbid']);
+        const ru = s.guard(['post', '--dir', s.posix(u.d), '--mode', 'confirm', '--signing', 'unsigned', '--run-number', '1', '--app-version', '2.45.0', '--allowlist', s.posix(u.al), '--cleartext', 'forbid', '--root', root]);
         expect(ru.out).toContain('NOTE: AG1: candidate (b) permission: android.permission.USE_BIOMETRIC');
         expect(ru.rc).toBe(0);
         const g = mk(true);
-        const rs = s.guard(['post', '--dir', s.posix(g.d), '--mode', 'confirm', '--signing', 'signed', '--run-number', '1', '--app-version', '2.45.0', '--allowlist', s.posix(g.al), '--expected-sha256', s.SHA_OK_PLAIN, '--cleartext', 'forbid']);
+        const rs = s.guard(['post', '--dir', s.posix(g.d), '--mode', 'confirm', '--signing', 'signed', '--run-number', '1', '--app-version', '2.45.0', '--allowlist', s.posix(g.al), '--expected-sha256', s.SHA_OK_PLAIN, '--cleartext', 'forbid', '--root', root]);
         expect(rs.rc).toBe(1);
         expect(s.failLines(rs, 'AG1').length).toBeGreaterThanOrEqual(1);
     });
