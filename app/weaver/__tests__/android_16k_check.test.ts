@@ -1,7 +1,7 @@
 // Copyright (c) 2026-present H.I. MET Architect (Weaver). See LICENSE.txt for license information.
 // Part of Weaver, which is based on Mattermost Mobile (Apache-2.0).
 
-// K-79/R0 単体テスト（工程8①）: weaver_android_16k_check.sh（UT-223〜238）。詳細設計 §5.7
+// K-79/R0 単体テスト（工程8①）: weaver_android_16k_check.sh（UT-223〜239）。詳細設計 §5.7
 // L1: WEAVER_OBJDUMP・WEAVER_ZIPALIGN のスタブ。L2（UT-237・238）: WSL の gcc と GNU objdump で実 .so を作って解析器に通す。
 // L2 の道具が無い環境は「【未実施（環境）】」とし、合格に数えない。
 
@@ -108,6 +108,74 @@ describe('16KB 整列の検査（L1・スタブ）', () => {
         expect(calls).toHaveLength(1);
         expect(calls[0]).toContain('-c -P 16 -v 4 ' + ok.input);
         expect(k16({files: {[A64]: [14], [X64]: [14]}, apk: true, zipRc: 1}).r.rc).toBe(1);
+    });
+
+    it('UT-239 zipalign 済み APK（Stored の .so・ローカルヘッダの extra が 0 埋めの整列パディング）でも lib/ の .so を全件読み、先頭から順読みで落ちない（K-79/R0 run 39027175202）', () => {
+        const crcTable = Array.from({length: 256}, (_v, n) => {
+            let c = n;
+            for (let k = 0; k < 8; k++) {
+                c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+            }
+            return c >>> 0;
+        });
+        const crc32 = (buf: Buffer) => {
+            let c = 0xffffffff;
+            for (const x of buf) {
+                c = crcTable[(c ^ x) & 0xff] ^ (c >>> 8);
+            }
+            return (c ^ 0xffffffff) >>> 0;
+        };
+        const entries: Array<[string, Buffer]> = [['AndroidManifest.xml', Buffer.from('m')], [A64, Buffer.from('ELF')], [X64, Buffer.from('ELF')]];
+        const locals: Buffer[] = [];
+        const centrals: Buffer[] = [];
+        let off = 0;
+        for (const [name, data] of entries) {
+            const nameB = Buffer.from(name);
+            const pad = (4096 - ((off + 30 + nameB.length) % 4096)) % 4096; // データ先頭を 4096 境界へ（zipalign と同じ 0 埋め）
+            const lh = Buffer.alloc(30);
+            lh.writeUInt32LE(0x04034b50, 0);
+            lh.writeUInt16LE(10, 4);
+            lh.writeUInt32LE(crc32(data), 14);
+            lh.writeUInt32LE(data.length, 18);
+            lh.writeUInt32LE(data.length, 22);
+            lh.writeUInt16LE(nameB.length, 26);
+            lh.writeUInt16LE(pad, 28);
+            const local = Buffer.concat([lh, nameB, Buffer.alloc(pad), data]);
+            const ch = Buffer.alloc(46);
+            ch.writeUInt32LE(0x02014b50, 0);
+            ch.writeUInt16LE(10, 4);
+            ch.writeUInt16LE(10, 6);
+            ch.writeUInt32LE(crc32(data), 16);
+            ch.writeUInt32LE(data.length, 20);
+            ch.writeUInt32LE(data.length, 24);
+            ch.writeUInt16LE(nameB.length, 28);
+            ch.writeUInt16LE(pad, 30);
+            ch.writeUInt32LE(off, 42);
+            centrals.push(Buffer.concat([ch, nameB, Buffer.alloc(pad)]));
+            locals.push(local);
+            off += local.length;
+        }
+        const cd = Buffer.concat(centrals);
+        const eocd = Buffer.alloc(22);
+        eocd.writeUInt32LE(0x06054b50, 0);
+        eocd.writeUInt16LE(entries.length, 8);
+        eocd.writeUInt16LE(entries.length, 10);
+        eocd.writeUInt32LE(cd.length, 12);
+        eocd.writeUInt32LE(off, 16);
+        const apkBuf = Buffer.concat([...locals, cd, eocd]);
+
+        const st = s.makeStubs(['llvm-objdump', 'zipalign']);
+        const work = s.tmp('k79-16k-pad-');
+        const rules = [A64, X64].map((rel) => `${rel}|||0|||${s.posix(s.write(work, 'o-' + rel.replace(/[\/ ]/g, '_') + '.txt', objOut([14])))}`);
+        const rulesFile = s.posix(s.write(work, 'obj.rules', rules.join('\n') + '\n'));
+        const apk = path.join(work, 'padded.apk');
+        fs.writeFileSync(apk, apkBuf);
+        const env = {STUB_LLVM_OBJDUMP_RULES: rulesFile, STUB_ZIPALIGN_RC: '0', WEAVER_OBJDUMP: s.posix(path.join(st.dir, 'llvm-objdump')), WEAVER_ZIPALIGN: s.posix(path.join(st.dir, 'zipalign'))};
+        const r = s.k16([s.posix(apk)], {stubDir: st.dir, env});
+        expect(r.out).toContain(`OK 2**14 ${A64}`);
+        expect(r.out).toContain(`OK 2**14 ${X64}`);
+        expect(r.out).toContain('P16 CHECKED: 2 shared object(s), violations: 0');
+        expect(r.rc).toBe(0);
     });
 
     it('UT-232 入力が展開済みディレクトリ: zipalign の呼び出し0回', () => {

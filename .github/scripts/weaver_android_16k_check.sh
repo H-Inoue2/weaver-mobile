@@ -11,7 +11,7 @@
 #       入力が APK のときは `zipalign -c -P 16 -v 4 <apk>` も成功すること（ZIP 整列だけで合格にはしない）。
 #       bundletool dump config の PAGE_ALIGNMENT は判定に使わない。
 # 出力: `OK 2**N <パス>` / `FAIL 2**N <パス>` を1件1行、末尾に `P16 CHECKED: <n> shared object(s), violations: <k>`。
-# 実装: bash と perl（IO::Uncompress::Unzip でAPKの .so だけを一時ディレクトリへ展開。読み取りと一時展開のみで、APKは実行しない）。
+# 実装: bash と perl（unzip でAPKの .so だけを一時ディレクトリへ展開。読み取りと一時展開のみで、APKは実行しない）。
 
 set -u
 
@@ -21,7 +21,6 @@ use warnings;
 use File::Find;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
-use IO::Uncompress::Unzip qw($UnzipError);
 
 $| = 1;
 my $input = shift @ARGV;
@@ -36,6 +35,7 @@ if (!-e $input) {
 }
 
 my $objdump = (defined $ENV{WEAVER_OBJDUMP} && $ENV{WEAVER_OBJDUMP} ne '') ? $ENV{WEAVER_OBJDUMP} : 'llvm-objdump';
+my $unzip = (defined $ENV{WEAVER_UNZIP} && $ENV{WEAVER_UNZIP} ne '') ? $ENV{WEAVER_UNZIP} : 'unzip';
 my $zipalign = (defined $ENV{WEAVER_ZIPALIGN} && $ENV{WEAVER_ZIPALIGN} ne '') ? $ENV{WEAVER_ZIPALIGN} : 'zipalign';
 my $violations = 0;
 my $checked = 0;
@@ -63,26 +63,16 @@ my $root;
 my $is_apk = -f $input ? 1 : 0;
 if ($is_apk) {
     $root = tempdir('weaver-16k-XXXXXX', TMPDIR => 1, CLEANUP => 1);
-    my $z = IO::Uncompress::Unzip->new($input, Name => undef, Append => 0) or do {
-        print "FAIL: cannot read the APK as a ZIP file: $input\n";
+    # ZIP の中央ディレクトリを使う unzip で .so だけを展開する。
+    # （IO::Uncompress::Unzip は先頭から順に読む方式で、zipalign 済み APK の整列パディング用 extra field で
+    #   "Header Error: ... FEXTRA Body Section" になり lib/ に届かない。K-79/R0 の run 39027175202 で実測）
+    my ($urc, $uout) = run_capture($unzip, '-qq', '-o', $input, 'lib/arm64-v8a/*.so', 'lib/x86_64/*.so', '-d', $root);
+    # rc 0＝成功 / 1＝警告つき成功 / 11＝一致するファイルなし（下で「対象なし」として失敗にする）
+    if ($urc != 0 && $urc != 1 && $urc != 11) {
+        print "FAIL: cannot read the APK as a ZIP file (unzip rc=$urc): $input\n";
         print "P16 CHECKED: 0 shared object(s), violations: 1\n";
         exit 1;
-    };
-    my $status;
-    for ($status = 1; $status > 0; $status = $z->nextStream()) {
-        my $name = $z->getHeaderInfo()->{Name};
-        if (defined $name && $name =~ m{\Alib/(?:arm64-v8a|x86_64)/[^/]+\.so\z}) {
-            my $dest = "$root/$name";
-            (my $dir = $dest) =~ s{/[^/]+\z}{};
-            make_path($dir);
-            open(my $out, '>:raw', $dest) or next;
-            my $buf;
-            while (($status = $z->read($buf)) > 0) { print $out $buf; }
-            close($out);
-        }
-        last if $status < 0;
     }
-    $z->close();
 } else {
     $root = $input;
     $root =~ s{/+\z}{} unless $root eq '/';
