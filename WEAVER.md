@@ -107,6 +107,14 @@ Mattermost Mobile（Apache License 2.0）を基に、Weaver 向けに変更し�
 | `app/components/channel_actions/add_members_box/add_members_box.tsx` | 同上（クイックアクションのシート／チャンネル案内からの入口。K-114） |
 | `app/components/channel_actions/info_box/index.tsx` | 「情報」を押した時点のサーバー URL を、チャンネル情報画面の params に積む（K-114） |
 | `app/screens/channel/header/header.tsx` | タイトルのタップでサーバー URL を積み、クイックアクションのボトムシートを開いた時点のサーバーに固定（K-114） |
+| `app/actions/remote/user.ts` | プロフィール写真のアップロードで、サーバーが拒否した（HTTP 4xx/5xx）ときにエラーを返す（上流は応答コードを見ていなかった。K-39） |
+| `app/components/post_draft/quick_actions/index.ts` | アプリのログ添付を常に無効にする（`app/weaver/allow_download_logs.ts`。K-39） |
+| `app/screens/report_a_problem/index.ts` | アプリのログのダウンロードを常に無効にする（同上。K-39） |
+| `app/screens/settings/report_problem/index.ts` | 同上（設定画面側の入口。K-39） |
+| `app/screens/settings/display/display.tsx` | 表示設定に「言語」の項目（`app/weaver/components/settings_language_item`）を追加（K-39） |
+| `app/init/launch.ts` | 起動 URL が SSO の戻り URL のときは、ディープリンク起動として扱わない（`app/weaver/sso_callback_url.ts`。K-39） |
+| `app/routes/+native-intent.ts` | SSO の戻り URL（スキーム有無とも）をディープリンク処理より前に無視する。ログイン後に「無効なリンク」が出ないように（K-39） |
+| `app/screens/home/hooks/use_home_effects.ts` | 開発ビルド（`__DEV__`）だけで、起動時の props を記録する（無効なリンクの警告の出どころの調査用。クエリ文字列は記録しない。K-39） |
 
 `.gitattributes` には、Android のワークフロー・データファイルを LF に固定する行も追加した（K-79）。
 
