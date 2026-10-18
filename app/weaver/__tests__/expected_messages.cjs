@@ -26,6 +26,7 @@ const KEYS = [
     'weaver.notification_notice.body_no_docs',
     'weaver.settings.language',
     'weaver.profile_image.resize_failed',
+    'weaver.pinned_server.unavailable',
 ];
 
 const JA = {
@@ -70,6 +71,7 @@ const JA = {
     'weaver.account_deletion.link.privacy': 'プライバシーポリシー',
     'weaver.settings.language': '言語',
     'weaver.profile_image.resize_failed': '写真を設定できませんでした。別の写真を選ぶか、もう一度お試しください。',
+    'weaver.pinned_server.unavailable': 'サーバーの情報が見つからないため、画面を閉じました。',
     'weaver.notification_notice.body_no_docs': '通知が届きませんか？まず、すべての端末にテスト通知を送って、正常に届くか確認してください。解決しない場合は、管理者にお問い合わせください。',
 };
 
@@ -109,6 +111,7 @@ const EN = {
     'weaver.account_deletion.link.privacy': 'Privacy policy',
     'weaver.settings.language': 'Language',
     'weaver.profile_image.resize_failed': 'The photo could not be prepared. Please choose another photo (JPEG or PNG) and try again.',
+    'weaver.pinned_server.unavailable': 'This screen was closed because the server could not be found.',
     'weaver.notification_notice.body_no_docs': 'Not receiving notifications? Start by sending a test notification to all your devices to check if they’re working as expected. If issues persist, please contact your administrator.',
 };
 

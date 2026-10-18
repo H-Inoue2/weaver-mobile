@@ -47,10 +47,19 @@ describe('messages.ts: 表の整合', () => {
             expect(k.startsWith('weaver.')).toBe(true);
         }
     });
-    it('UT-14 必須21キー（20キー＋weaver.profile_image.resize_failed）が en・ja の両方にあり、キー集合はちょうどその21個', () => {
-        expect(KEYS).toHaveLength(21);
+    it('UT-14 必須22キー（21キー＋weaver.pinned_server.unavailable）が en・ja の両方にあり、キー集合はちょうどその22個', () => {
+        expect(KEYS).toHaveLength(22);
         expect(Object.keys(en).sort()).toEqual([...KEYS].sort());
         expect(Object.keys(ja).sort()).toEqual([...KEYS].sort());
+    });
+    it('K114-UT-23 サーバー固定の閉じる文言（ja・en）が期待どおり。ja は日本語、en は日本語を含まない', () => {
+        const key = 'weaver.pinned_server.unavailable';
+        expect(get('en', key)).toBe('This screen was closed because the server could not be found.');
+        expect(get('ja', key)).toBe('サーバーの情報が見つからないため、画面を閉じました。');
+        expect(get('en', key)).toBe(EN[key]);
+        expect(get('ja', key)).toBe(JA[key]);
+        expect(get('ja', key)).toMatch(/[\u3040-\u30ff\u4e00-\u9fff]/);
+        expect(get('en', key)).not.toMatch(/[\u3040-\u30ff\u4e00-\u9fff]/);
     });
     it('UT-PR-15 プロフィール写真の失敗文言（ja・en）が期待どおり。ja は日本語、en は日本語を含まない', () => {
         const key = 'weaver.profile_image.resize_failed';
