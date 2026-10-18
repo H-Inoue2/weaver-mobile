@@ -1,26 +1,32 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-114, 2026-10): the screen is pinned to the server in the serverUrl param (PinnedServerScope), so a last-active server switch cannot swap its server context.
+
 import {useNavigation} from 'expo-router';
 import {useIntl} from 'react-intl';
 
 import NavigationHeaderTitle from '@components/navigation_header_title';
+import {Screens} from '@constants';
 import {useTheme} from '@context/theme';
 import {getHeaderOptions, getModalHeaderOptions, useNavigationHeader} from '@hooks/navigation_header';
 import {usePropsFromParams} from '@hooks/props_from_params';
 import ChannelAddMembersScreen from '@screens/channel_add_members';
 
+import PinnedServerScope from '../../../weaver/components/pinned_server_scope';
+
 type ChannelAddMembersRouteProps = {
     inModal?: boolean;
     channelId: string;
     displayName?: string;
+    serverUrl?: string;
 }
 
 export default function ChannelAddMembersRoute() {
     const navigation = useNavigation();
     const theme = useTheme();
     const intl = useIntl();
-    const {inModal, channelId, displayName} = usePropsFromParams<ChannelAddMembersRouteProps>();
+    const {inModal, channelId, displayName, serverUrl} = usePropsFromParams<ChannelAddMembersRouteProps>();
 
     useNavigationHeader({
         showWhenPushed: true,
@@ -35,5 +41,12 @@ export default function ChannelAddMembersRoute() {
         },
     });
 
-    return <ChannelAddMembersScreen channelId={channelId}/>;
+    return (
+        <PinnedServerScope
+            serverUrl={serverUrl}
+            screenId={Screens.CHANNEL_ADD_MEMBERS}
+        >
+            <ChannelAddMembersScreen channelId={channelId}/>
+        </PinnedServerScope>
+    );
 }

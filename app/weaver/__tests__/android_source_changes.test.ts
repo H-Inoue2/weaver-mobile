@@ -153,7 +153,16 @@ describe('ソース変更（詳細設計 §2.2）', () => {
         const forbidden = [...names].filter((n) => /^ios\/|weaver-ios-.*\.yml$|configure_manual_signing\.rb$|release_guard\.test\.ts$/.test(n));
         expect(forbidden).toEqual([]);
         const allowedPrefix = /^(android\/|\.github\/|app\/weaver\/)/;
-        const exceptions = new Set(['WEAVER.md', '.gitignore', '.gitattributes', 'package.json', 'package-lock.json']);
+        // K-114（押した時点のサーバーに固定）が正当に変える上流6ファイル。理由つきで名指し許可する（ディレクトリ単位では許可しない＝K-79の検出力を保つ。新しい上流変更は、ここへ足さない限り落ちる）
+        const k114Upstream = [
+            'app/components/channel_actions/add_members_box/add_members_box.tsx',
+            'app/components/channel_actions/info_box/index.tsx',
+            'app/routes/(modals)/(channel_info)/channel_add_members.tsx',
+            'app/routes/(modals)/(channel_info)/index.tsx',
+            'app/screens/channel/header/header.tsx',
+            'app/screens/channel_info/options/add_members/add_members.tsx',
+        ];
+        const exceptions = new Set(['WEAVER.md', '.gitignore', '.gitattributes', 'package.json', 'package-lock.json', ...k114Upstream]);
         const outside = [...names].filter((n) => !allowedPrefix.test(n) && !exceptions.has(n) && !/^\.claude\//.test(n));
         expect(outside).toEqual([]);
         const ga = lineDiff(baseText('.gitattributes'), s.read('.gitattributes'));

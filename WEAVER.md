@@ -101,6 +101,12 @@ Mattermost Mobile（Apache License 2.0）を基に、Weaver 向けに変更し�
 | `android/app/src/main/res/values/strings.xml` | `app_name` を `Weaver`（`app/weaver/constants.ts` の `APP_NAME` と同じ値）に |
 | `.github/scripts/weaver_release_guard.sh` | `--shared-only`（`ios/` の検査 G1・G2 を飛ばす）を追加。既定の挙動・出力は変えていない |
 | `.gitignore` | `*.jks`・`*.p12`・`*.pem`・`*.p8`・`*.b64`・`*.base64`・`*service-account*.json`・`*service_account*.json`・`*-adminsdk-*.json` を追加（鍵・認証情報の誤コミット防止） |
+| `app/routes/(modals)/(channel_info)/channel_add_members.tsx` | メンバー追加画面を、params の `serverUrl` のサーバーに固定（`app/weaver/components/pinned_server_scope.tsx` で包む）。last_active が替わっても文脈が入れ替わらない（K-114） |
+| `app/routes/(modals)/(channel_info)/index.tsx` | チャンネル情報画面を、params の `serverUrl` のサーバーに固定（同上。K-114） |
+| `app/screens/channel_info/options/add_members/add_members.tsx` | 「メンバーを追加」を押した時点のサーバー URL を、メンバー追加画面の params に積む（K-114） |
+| `app/components/channel_actions/add_members_box/add_members_box.tsx` | 同上（クイックアクションのシート／チャンネル案内からの入口。K-114） |
+| `app/components/channel_actions/info_box/index.tsx` | 「情報」を押した時点のサーバー URL を、チャンネル情報画面の params に積む（K-114） |
+| `app/screens/channel/header/header.tsx` | タイトルのタップでサーバー URL を積み、クイックアクションのボトムシートを開いた時点のサーバーに固定（K-114） |
 
 `.gitattributes` には、Android のワークフロー・データファイルを LF に固定する行も追加した（K-79）。
 

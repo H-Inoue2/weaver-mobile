@@ -446,7 +446,7 @@ describe('K-114 PinnedServerScope', () => {
 
         it('K114-UT-06(d) navigateBack が何もしないとき: 800ms 後に null の代わりに同じ文言のテキストが1つ描画される', async () => {
             await seedAB();
-            jest.mocked(navigateBack).mockImplementation(() => undefined);
+            jest.mocked(navigateBack).mockImplementation(async () => undefined);
             const {r} = renderScope({serverUrl: undefined});
             await waitFor(() => expect(navigateBack).toHaveBeenCalledTimes(1));
             expect(r.queryAllByText(EN_TEXT)).toHaveLength(0);

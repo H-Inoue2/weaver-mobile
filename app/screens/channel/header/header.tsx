@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-114, 2026-10): passes serverUrl to the channel info screen and pins the quick-action bottom sheet to the server it was opened on (PinnedServerScope).
+
 import React, {useCallback, useEffect, useMemo} from 'react';
 import {useIntl} from 'react-intl';
 import {DeviceEventEmitter, Platform, Text, View} from 'react-native';
@@ -30,6 +32,8 @@ import EphemeralStore from '@store/ephemeral_store';
 import {isDMChannel, isTypeDMorGM} from '@utils/channel';
 import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
 import {typography} from '@utils/typography';
+
+import PinnedServerScope from '../../../weaver/components/pinned_server_scope';
 
 import ChannelHeaderBookmarks from './bookmarks';
 import QuickActions, {MARGIN, SEPARATOR_HEIGHT} from './quick_actions';
@@ -170,8 +174,8 @@ const ChannelHeader = ({
                 break;
         }
 
-        navigateToScreen(Screens.CHANNEL_INFO, {channelId, title, groupCallsAllowed});
-    }), [channelId, channelType, groupCallsAllowed, intl]));
+        navigateToScreen(Screens.CHANNEL_INFO, {channelId, title, groupCallsAllowed, serverUrl});
+    }), [channelId, channelType, groupCallsAllowed, intl, serverUrl]));
 
     const onChannelQuickAction = useCallback(() => {
         // When calls is enabled, we need space to move the "Copy Link" from a button to an option
@@ -189,17 +193,22 @@ const ChannelHeader = ({
 
         const renderContent = () => {
             return (
-                <QuickActions
-                    channelId={channelId}
-                    callsEnabled={callsAvailable}
-                    isDMorGM={isDMorGM}
-                    hasPlaybookRuns={hasPlaybookRuns}
-                />
+                <PinnedServerScope
+                    serverUrl={serverUrl}
+                    screenId={Screens.GENERIC_BOTTOM_SHEET}
+                >
+                    <QuickActions
+                        channelId={channelId}
+                        callsEnabled={callsAvailable}
+                        isDMorGM={isDMorGM}
+                        hasPlaybookRuns={hasPlaybookRuns}
+                    />
+                </PinnedServerScope>
             );
         };
 
         bottomSheet(renderContent, [1, height]);
-    }, [callsAvailable, isDMorGM, hasPlaybookRuns, agentsEnabled, channelId]);
+    }, [callsAvailable, isDMorGM, hasPlaybookRuns, agentsEnabled, channelId, serverUrl]);
 
     const openPlaybooksRuns = useCallback(() => {
         // If no active runs, create a new one instead
