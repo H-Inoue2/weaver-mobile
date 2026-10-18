@@ -4,6 +4,8 @@
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
         <!-- Customize your theme here. -->
         <item name="android:windowBackground">@drawable/launch_screen</item>
+        <!-- Android 12+ のシステムスプラッシュの背景色（Weaver: 元画像と同じ #03132E） -->
+        <item name="android:windowSplashScreenBackground">@color/splashscreen_bg</item>
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
 
     </style>
