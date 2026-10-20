@@ -162,7 +162,14 @@ describe('ソース変更（詳細設計 §2.2）', () => {
             'app/screens/channel/header/header.tsx',
             'app/screens/channel_info/options/add_members/add_members.tsx',
         ];
-        const exceptions = new Set(['WEAVER.md', '.gitignore', '.gitattributes', 'package.json', 'package-lock.json', ...k114Upstream]);
+
+        // K-120（「通知を受け取れません」警告を表示の入口で止める）が正当に変える上流3ファイル（本番コード2＋同居テスト1）。案件別の配列で、k114Upstream・k116Upstream とは共有しない
+        const k120Upstream = [
+            'app/screens/home/channel_list/servers/servers_list/server_item/index.ts',
+            'app/screens/home/channel_list/categories_list/header/index.ts',
+            'app/screens/home/channel_list/categories_list/header/index.test.tsx',
+        ];
+        const exceptions = new Set(['WEAVER.md', '.gitignore', '.gitattributes', 'package.json', 'package-lock.json', ...k114Upstream, ...k120Upstream]);
         const outside = [...names].filter((n) => !allowedPrefix.test(n) && !exceptions.has(n) && !/^\.claude\//.test(n));
         expect(outside).toEqual([]);
         const ga = lineDiff(baseText('.gitattributes'), s.read('.gitattributes'));

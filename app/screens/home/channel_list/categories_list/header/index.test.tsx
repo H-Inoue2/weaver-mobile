@@ -5,7 +5,7 @@ import React from 'react';
 
 import {Permissions} from '@constants';
 import {SYSTEM_IDENTIFIERS} from '@constants/database';
-import {PUSH_PROXY_STATUS_UNKNOWN, PUSH_PROXY_STATUS_VERIFIED} from '@constants/push_proxy';
+import {PUSH_PROXY_STATUS_VERIFIED} from '@constants/push_proxy';
 import DatabaseManager from '@database/manager';
 import {act, renderWithEverything, waitFor} from '@test/intl-test-helper';
 import TestHelper from '@test/test_helper';
@@ -55,7 +55,7 @@ describe('ChannelListHeader Index', () => {
         const component = getByTestId('channel-list-header');
         expect(component).toBeTruthy();
         expect(component.props.displayName).toBeUndefined();
-        expect(component.props.pushProxyStatus).toBe(PUSH_PROXY_STATUS_UNKNOWN);
+        expect(component.props.pushProxyStatus).toBe(PUSH_PROXY_STATUS_VERIFIED); // K-120: 警告を止めるため、DB に行が無くても verified
         expect(component.props.canCreateChannels).toBe(true); // By default, we allow creating channels
         expect(component.props.canJoinChannels).toBe(true); // By default, we allow joining channels
         expect(component.props.canInvitePeople).toBe(false);
@@ -161,7 +161,9 @@ describe('ChannelListHeader Index', () => {
 
         let component = getByTestId('channel-list-header');
         expect(component.props.displayName).toBe('Team One');
-        expect(component.props.pushProxyStatus).toBe(PUSH_PROXY_STATUS_UNKNOWN);
+
+        // K-120: 警告を止めるため初回から verified。検証状態の変化への追従は K120-UT-01d・K120-IT-17・18 が持つ
+        expect(component.props.pushProxyStatus).toBe(PUSH_PROXY_STATUS_VERIFIED);
 
         // Update current team
         await act(async () => {
