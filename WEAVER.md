@@ -115,6 +115,8 @@ Mattermost Mobile（Apache License 2.0）を基に、Weaver 向けに変更し�
 | `app/init/launch.ts` | 起動 URL が SSO の戻り URL のときは、ディープリンク起動として扱わない（`app/weaver/sso_callback_url.ts`。K-39） |
 | `app/routes/+native-intent.ts` | SSO の戻り URL（スキーム有無とも）をディープリンク処理より前に無視する。ログイン後に「無効なリンク」が出ないように（K-39） |
 | `app/screens/home/hooks/use_home_effects.ts` | 開発ビルド（`__DEV__`）だけで、起動時の props を記録する（無効なリンクの警告の出どころの調査用。クエリ文字列は記録しない。K-39） |
+| `app/screens/home/channel_list/servers/servers_list/server_item/index.ts` | `SHOW_PUSH_PROXY_WARNING`（`app/weaver/push_proxy_warning.ts`）が `false` の間、サーバー一覧の各行の警告（文言と三角アイコン）を、画面へ渡す値を `verified` にして止める。端末 DB の検証状態は変えない。戻し方: `SHOW_PUSH_PROXY_WARNING` を `true` にして再ビルド（テスト・他文書の更新が要る。K-120 詳細設計 §6）。K-120 |
+| `app/screens/home/channel_list/categories_list/header/index.ts` | 同じ定数が `false` の間、ホームのサーバー名の横の警告アイコンを止める。注意: 次の K-39 の記述が K-120 で古くなった（ソースは変えない。`true` に戻せば再び正しい）: `app/utils/push_proxy.ts` L24（コメント「ヘッダーの警告アイコン…は従来どおり状態を示す」）、`app/weaver/__tests__/push_proxy_connect_alert.test.ts` L6・L56・L82、`app/utils/push_proxy.test.ts` L74。K-120 |
 
 `.gitattributes` には、Android のワークフロー・データファイルを LF に固定する行も追加した（K-79）。
 

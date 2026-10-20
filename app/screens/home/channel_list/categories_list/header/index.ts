@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-120, 2026-10): the push proxy status passed to the view is gated by SHOW_PUSH_PROXY_WARNING (app/weaver/push_proxy_warning.ts). The stored status is not changed.
+
 import {withDatabase, withObservables} from '@nozbe/watermelondb/react';
 import {combineLatest, of as of$} from 'rxjs';
 import {distinctUntilChanged, switchMap} from 'rxjs/operators';
@@ -12,6 +14,8 @@ import {observeConfigBooleanValue, observePushVerificationStatus} from '@queries
 import {observeCurrentTeam, queryMyTeams} from '@queries/servers/team';
 import {observeCurrentUser} from '@queries/servers/user';
 import EphemeralStore from '@store/ephemeral_store';
+
+import {observeDisplayedPushProxyStatus, SHOW_PUSH_PROXY_WARNING} from '../../../../../weaver/push_proxy_warning';
 
 import ChannelListHeader from './header';
 
@@ -83,7 +87,7 @@ const enhanced = withObservables([], ({database, serverUrl}: EnhanceProps) => {
             switchMap((v) => of$(v > 1)),
             distinctUntilChanged(),
         ),
-        pushProxyStatus: observePushVerificationStatus(database),
+        pushProxyStatus: observeDisplayedPushProxyStatus(observePushVerificationStatus(database), SHOW_PUSH_PROXY_WARNING),
     };
 });
 
