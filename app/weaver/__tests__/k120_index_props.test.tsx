@@ -38,7 +38,7 @@ describe('K-120 index.ts が渡す pushProxyStatus（SHOW_PUSH_PROXY_WARNING=fal
         await operator.handleSystem({systems: [{id: SYSTEM_IDENTIFIERS.PUSH_VERIFICATION_STATUS, value}], prepareRecordsOnly: false});
     };
     const storedStatus = async (): Promise<string> => {
-        const rec: {value: string} = await database.get(MM_TABLES.SERVER.SYSTEM).find(SYSTEM_IDENTIFIERS.PUSH_VERIFICATION_STATUS);
+        const rec = (await database.get(MM_TABLES.SERVER.SYSTEM).find(SYSTEM_IDENTIFIERS.PUSH_VERIFICATION_STATUS)) as unknown as {value: string};
         return rec.value;
     };
 
