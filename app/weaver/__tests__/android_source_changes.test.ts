@@ -150,7 +150,19 @@ describe('ソース変更（詳細設計 §2.2）', () => {
             ...s.git(['diff', '--name-only', s.BASE_SHA]).out.toString().split('\n'),
             ...s.git(['ls-files', '--others', '--exclude-standard']).out.toString().split('\n'),
         ].filter(Boolean));
-        const forbidden = [...names].filter((n) => /^ios\/|weaver-ios-.*\.yml$|configure_manual_signing\.rb$|release_guard\.test\.ts$/.test(n));
+        // K-120: iOS のマーケティングバージョンだけを上げるための weaver-ios-testflight.yml の変更（APP_VERSION の1行と、その説明コメント行）は正当な iOS 単独の版上げであり、Android の変更ではない。
+        // 根拠: iOS の版は同ワークフローの env APP_VERSION だけが決める（WEAVER.md・K-120）。版を上げるたびに本検査が落ちて Android のビルドが止まった（2026-10-22）。
+        // 許可は「基点との行差分が、APP_VERSION 行とコメント行（#）だけ」に限る。それ以外の行が変わったら従来どおり禁止（ほかの変更0件の検査は維持する）。
+        const IOS_WF = '.github/workflows/weaver-ios-testflight.yml';
+        const iosVersionBumpOnly = (n: string) => {
+            if (n !== IOS_WF) {
+                return false;
+            }
+            const d = lineDiff(baseText(n), s.read(n));
+            const ok = (l: string) => /^\s*APP_VERSION:\s*"[0-9]+\.[0-9]+\.[0-9]+"\s*$/.test(l) || /^\s*#/.test(l);
+            return d.added.every(ok) && d.removed.every(ok);
+        };
+        const forbidden = [...names].filter((n) => /^ios\/|weaver-ios-.*\.yml$|configure_manual_signing\.rb$|release_guard\.test\.ts$/.test(n) && !iosVersionBumpOnly(n));
         expect(forbidden).toEqual([]);
         const allowedPrefix = /^(android\/|\.github\/|app\/weaver\/)/;
         // K-114（押した時点のサーバーに固定）が正当に変える上流6ファイル。理由つきで名指し許可する（ディレクトリ単位では許可しない＝K-79の検出力を保つ。新しい上流変更は、ここへ足さない限り落ちる）
