@@ -183,8 +183,67 @@ function constantsText(values = {}, rawLines = {}) {
     }).filter((l) => l !== null).join('\n') + '\n';
 }
 
+// K-139: IG1（通知拡張のバッジ・前面フラグの書き込みの形）の基準データ。実ファイルの骨格（詳細設計 §5.1）
+// 注意: コメントの中に ApplicationIsForeground・badge = nil を書かない（「1点だけ変える」流儀で作るため）
+const SWIFT_COND = '(Gekidou.Preferences.default.object(forKey: "ApplicationIsForeground") as? String == "true")';
+const SWIFT_BADGE_BLOCK = `      if ${SWIFT_COND} {\n        notification.badge = nil\n      }\n`;
+function swiftText() {
+    return [
+        'import UserNotifications',
+        '',
+        'class NotificationService: UNNotificationServiceExtension {',
+        '  func didReceive(_ notification: UNMutableNotificationContent) {',
+        '    os_log("fixture %{public}@", type: .info, "x")',
+        '    if (Gekidou.Preferences.default.object(forKey: "ApplicationIsRunning") as? String != "true") {',
+        '      PushNotification.default.fetchAndStoreDataForPushNotification(notification)',
+        '    } else {',
+        SWIFT_BADGE_BLOCK.replace(/\n$/, ''),
+        '      Gekidou.GekidouLogger.shared.log(.info, "app in use")',
+        '      self.sendMessageIntent()',
+        '    }',
+        '  }',
+        '}',
+        '',
+    ].join('\n');
+}
+const APPD_TRUE = 'GekidouWrapper.default.setPreference("true", forKey: "ApplicationIsForeground")';
+const APPD_FALSE = 'GekidouWrapper.default.setPreference("false", forKey: "ApplicationIsForeground")';
+function appDelegateText() {
+    return [
+        'import UIKit',
+        '',
+        'class AppDelegate: ExpoAppDelegate {',
+        '    override func applicationDidBecomeActive(_ application: UIApplication) {',
+        '        super.applicationDidBecomeActive(application)',
+        `        ${APPD_TRUE}`,
+        '        endDatabaseLockProtection()',
+        '    }',
+        '',
+        '    override func applicationWillResignActive(_ application: UIApplication) {',
+        '        super.applicationWillResignActive(application)',
+        `        ${APPD_FALSE}`,
+        '    }',
+        '',
+        '    override func applicationDidEnterBackground(_ application: UIApplication) {',
+        '        super.applicationDidEnterBackground(application)',
+        `        ${APPD_FALSE}`,
+        '        beginDatabaseLockProtection()',
+        '    }',
+        '',
+        '    override func applicationWillTerminate(_ application: UIApplication) {',
+        '        super.applicationWillTerminate(application)',
+        `        ${APPD_FALSE}`,
+        '        GekidouWrapper.default.setPreference("false", forKey: "ApplicationIsRunning")',
+        '        endDatabaseLockProtection()',
+        '    }',
+        '}',
+        '',
+    ].join('\n');
+}
+
 /**
  * opts:
+ *  swift / appdelegate: K-139 IG1 用の本文の上書き（undefined なら既定）。omit: ['swift'] / ['appdelegate'] で作らない
  *  pbx: 生の値の配列（既定: '1' を6件）／pbxLines: 行そのものの配列（pbx より優先）
  *  plist: キー上書き／plistExtra: 末尾に足す生テキスト
  *  consts: 定数の値上書き／constRaw: 定数の行そのものの上書き（null で行を消す）／constantsFile: ファイル全体の上書き
@@ -206,6 +265,12 @@ function makeFixture(opts = {}) {
     }
     if (!omit.includes('constants')) {
         files['app/weaver/constants.ts'] = opts.constantsFile === undefined ? constantsText(opts.consts, opts.constRaw) : opts.constantsFile;
+    }
+    if (!omit.includes('swift')) {
+        files['ios/NotificationService/NotificationService.swift'] = opts.swift === undefined ? swiftText() : opts.swift;
+    }
+    if (!omit.includes('appdelegate')) {
+        files['ios/Mattermost/AppDelegate.swift'] = opts.appdelegate === undefined ? appDelegateText() : opts.appdelegate;
     }
     files['app/weaver/messages.ts'] = opts.messages === undefined ? 'export const WEAVER_MESSAGES = {en: {}, ja: {}};\n' : opts.messages;
     Object.assign(files, opts.files || {});
@@ -324,5 +389,6 @@ module.exports = {
     ROOT, BASH, GUARD_REL, guardAbs, posix, abs, exists, read, readRaw, walk, isTestFile, isCommentLine,
     nodeText, walkJson, findByTestId, allTestIds, flattenStyle, stripComments, codeOnly, textNodes, constOverrides, constantsMockModule, makeAboutConfig,
     CONST_NAMES, N_CONSTANTS, WEAVER_KEYS, PLAIN_KEYS, tdfLine, pbxprojText, plistText, constantsText,
+    swiftText, appDelegateText, SWIFT_COND, SWIFT_BADGE_BLOCK, APPD_TRUE, APPD_FALSE,
     makeFixture, removeFixture, runGuard, lintText, pngInfo,
 };
