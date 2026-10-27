@@ -136,7 +136,8 @@ describe('IG1: 正常系（番人）', () => {
         expectOk(run({appdelegate: ad((t) => sub(t, TRUE_LINE, call))}));
     });
     it.each([
-        ['(a) 補間の入れ子', String.raw`    let s = "a \(f("b \("c}")) {")"` + '\n'],
+        ['(a) 補間の入れ子', String.raw`    let s = "a \(f("b \("c}")) {"))"` + '\n'],
+        ['(d) 補間の入れ子（f(1) の後に g("}") が続く。深さを数えず最初の ) で閉じる実装では波括弧が合わず FAIL）', String.raw`    let s2 = "a \(f(1) + g("}")) {"` + '\n'],
         ['(b) 生文字列 #', '    let r = #"x "y" } {"#\n'],
         ['(c) 生文字列 ##', '    let r2 = ##"p "# } q"##\n'],
     ])('IT-62 字句走査の入れ子・生文字列 %s: 終了0', (_n, line) => {
@@ -392,7 +393,7 @@ describe('K-139 実リポジトリの静的確認（IT-14〜20）', () => {
         expect(addedText).toContain('ApplicationIsForeground');
         expect(addedText).toContain('notification.badge = nil');
         for (const w of ['postNotificationReceipt', 'verifySignatureFromNotification', 'sendMessageIntent', 'fetchAndStoreDataForPushNotification']) {
-            expect([w, d.includes(w)]).toEqual([w, false]);
+            expect([w, [...removed, ...added].some((l) => l.includes(w))]).toEqual([w, false]);
         }
     });
     it('IT-15 WEAVER.md に swift の行が1行・swift に Modified for Weaver がある', () => {

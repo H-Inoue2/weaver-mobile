@@ -123,7 +123,10 @@ class NotificationService: UNNotificationServiceExtension {
               self.sendMessageIntent()
             })
           } else {
-            notification.badge = nil
+            // Modified for Weaver (K-139): clear the badge only while the app is in the foreground; otherwise keep the server value.
+            if (Gekidou.Preferences.default.object(forKey: "ApplicationIsForeground") as? String == "true") {
+              notification.badge = nil
+            }
             Gekidou.GekidouLogger.shared.log(.info, "NotificationService didReceive: app in use, no data processed. Will call sendMessageIntent")
             self.sendMessageIntent()
           }

@@ -183,7 +183,7 @@ describe('ソース変更（詳細設計 §2.2）', () => {
             'app/screens/home/channel_list/categories_list/header/index.ts',
             'app/screens/home/channel_list/categories_list/header/index.test.tsx',
         ];
-        const exceptions = new Set(['WEAVER.md', '.gitignore', '.gitattributes', 'package.json', 'package-lock.json', ...k114Upstream, ...k120Upstream]);
+        const exceptions = new Set(['WEAVER.md', '.gitignore', '.gitattributes', 'package.json', 'package-lock.json', ...k114Upstream, ...k120Upstream, ...k139Ios]);
         const outside = [...names].filter((n) => !allowedPrefix.test(n) && !exceptions.has(n) && !/^\.claude\//.test(n));
         expect(outside).toEqual([]);
         const ga = lineDiff(baseText('.gitattributes'), s.read('.gitattributes'));

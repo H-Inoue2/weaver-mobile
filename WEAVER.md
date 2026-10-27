@@ -89,9 +89,10 @@ Mattermost Mobile（Apache License 2.0）を基に、Weaver 向けに変更し�
 | `app/utils/share_logs.ts` | 既定のサポートリンク・メール件名を Weaver に |
 | `ios/Mattermost/Info.plist` | 許可ダイアログの文言5つのアプリ名を Weaver に。`UIBackgroundModes` から `audio`・`voip` を削除（App Store審査 Guideline 2.5.4 の指摘。`fetch`・`remote-notification` は残す。K-39 ビルド18） |
 | `ios/Mattermost.xcodeproj/project.pbxproj` | `TARGETED_DEVICE_FAMILY` を iPhone 専用（`1`）に |
+| `ios/NotificationService/NotificationService.swift` | アプリが使用中（`ApplicationIsRunning` が `true`）の通知で、バッジを消す（`nil`）のを前面（`ApplicationIsForeground` が `true`）のときだけにした。それ以外はサーバーが付けた値を残す。該当箇所に変更表示（K-139） |
 | `assets/base/images/icon.png` | アプリ内通知の既定アイコンを Weaver に |
 | `eslint.config.mjs` | 末尾に Weaver 用ヘッダーの上書きブロックを追加 |
-| `.github/workflows/weaver-ios-testflight.yml` | ビルド時ガードと、確認用／提出用ビルドの区別（`for_submission`）を追加 |
+| `.github/workflows/weaver-ios-testflight.yml` | ビルド時ガードと、確認用／提出用ビルドの区別（`for_submission`）を追加。`APP_VERSION` を 2.45.1 に（iOS のみ。K-139） |
 | `NOTICE.txt` | 冒頭に Weaver 版の変更の旨を追記 |
 | `.gitattributes` | `.github/scripts/*.sh` を LF に固定 |
 | `android/app/build.gradle` | `namespace` を上流のソースの `package` に合わせて `com.mattermost.rnbeta` に戻した（`applicationId` は `com.metarchitect.Weaver`）。先頭に変更表示（K-79） |
@@ -99,7 +100,7 @@ Mattermost Mobile（Apache License 2.0）を基に、Weaver 向けに変更し�
 | `android/app/src/main/AndroidManifest.xml` | `FOREGROUND_SERVICE_MICROPHONE` と、ライブラリ由来の通話用フォアグラウンドサービス2件（`MMCallsForegroundService`・`MediaProjectionService`）を削除。`resizeableActivity` と `usesCleartextTraffic` を `false` に。先頭に変更表示 |
 | `android/app/src/main/res/xml/network_security_config.xml` | 平文通信を禁止（`cleartextTrafficPermitted="false"`）。ユーザー追加CAの信頼は残す。先頭に変更表示 |
 | `android/app/src/main/res/values/strings.xml` | `app_name` を `Weaver`（`app/weaver/constants.ts` の `APP_NAME` と同じ値）に |
-| `.github/scripts/weaver_release_guard.sh` | `--shared-only`（`ios/` の検査 G1・G2 を飛ばす）を追加。既定の挙動・出力は変えていない |
+| `.github/scripts/weaver_release_guard.sh` | `--shared-only`（`ios/` の検査 G1・G2 を飛ばす）を追加。IG1（通知拡張のバッジ代入と、AppDelegate の前面フラグ書き込みの形の検査）を追加（`--shared-only` では走らない）。合格時の出力は変えていない（K-139） |
 | `.gitignore` | `*.jks`・`*.p12`・`*.pem`・`*.p8`・`*.b64`・`*.base64`・`*service-account*.json`・`*service_account*.json`・`*-adminsdk-*.json` を追加（鍵・認証情報の誤コミット防止） |
 | `app/routes/(modals)/(channel_info)/channel_add_members.tsx` | メンバー追加画面を、params の `serverUrl` のサーバーに固定（`app/weaver/components/pinned_server_scope.tsx` で包む）。last_active が替わっても文脈が入れ替わらない（K-114） |
 | `app/routes/(modals)/(channel_info)/index.tsx` | チャンネル情報画面を、params の `serverUrl` のサーバーに固定（同上。K-114） |

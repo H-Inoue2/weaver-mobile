@@ -191,7 +191,7 @@ jobs:
             2>/dev/null || /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "ios/Mattermost/Info.plist"
 
       # ビルド時ガード（詳細設計 §3.13）。Configure manual signing（pbxprojの保存し直し）より後、アーカイブより前に検査する。
-      # 確認用ビルド（for_submission=false）は G1・G2・G5 のみ、提出用ビルド（true）は G1〜G5 すべて（--release）。
+      # 確認用ビルド（for_submission=false）は G1・G2・G5・IG1、提出用ビルド（true）は G1〜G5・IG1（--release）。
       - name: Release guard (confirm build)
         if: ${{ !inputs.for_submission }}
         run: bash .github/scripts/weaver_release_guard.sh
