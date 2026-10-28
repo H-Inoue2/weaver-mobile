@@ -92,7 +92,7 @@ Mattermost Mobile（Apache License 2.0）を基に、Weaver 向けに変更し�
 | `ios/NotificationService/NotificationService.swift` | アプリが使用中（`ApplicationIsRunning` が `true`）の通知で、バッジを消す（`nil`）のを前面（`ApplicationIsForeground` が `true`）のときだけにした。それ以外はサーバーが付けた値を残す。該当箇所に変更表示（K-139） |
 | `assets/base/images/icon.png` | アプリ内通知の既定アイコンを Weaver に |
 | `eslint.config.mjs` | 末尾に Weaver 用ヘッダーの上書きブロックを追加 |
-| `.github/workflows/weaver-ios-testflight.yml` | ビルド時ガードと、確認用／提出用ビルドの区別（`for_submission`）を追加。`APP_VERSION` を 2.45.1 に（iOS のみ。K-139） |
+| `.github/workflows/weaver-ios-testflight.yml` | ビルド時ガードと、確認用／提出用ビルドの区別（`for_submission`）を追加。`APP_VERSION` を 2.45.2 に（iOS のみ。K-139） |
 | `NOTICE.txt` | 冒頭に Weaver 版の変更の旨を追記 |
 | `.gitattributes` | `.github/scripts/*.sh` を LF に固定 |
 | `android/app/build.gradle` | `namespace` を上流のソースの `package` に合わせて `com.mattermost.rnbeta` に戻した（`applicationId` は `com.metarchitect.Weaver`）。先頭に変更表示（K-79） |

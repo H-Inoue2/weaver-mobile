@@ -107,13 +107,13 @@ describe('データファイル（詳細設計 §5.8）', () => {
         expect(now).toContain('.github/scripts/*.sh text eol=lf');
     });
 
-    it('UT-303【未】APP_VERSION（Android ワークフローの env）・package.json の version は 2.45.0、iOS ワークフローの版は 2.45.1（K-120 で iOS のみ上げた。Android は未公開のため据え置き）', () => {
+    it('UT-303【未】APP_VERSION（Android ワークフローの env）・package.json の version は 2.45.0、iOS ワークフローの版は 2.45.2（K-120 で iOS のみ上げた。Android は未公開のため据え置き）', () => {
         const a = w.loadReal().env.APP_VERSION;
         const p = JSON.parse(s.read('package.json')).version;
         const ios = /APP_VERSION[^\n]*?["']?(\d+\.\d+\.\d+)/.exec(s.read('.github/workflows/weaver-ios-testflight.yml'));
         expect(a).toBe('2.45.0');
         expect(p).toBe('2.45.0');
-        expect(ios && ios[1]).toBe('2.45.1');
+        expect(ios && ios[1]).toBe('2.45.2');
     });
 
     it('UT-304 com.metarchitect.Weaver が build.gradle・ダミー google-services.json・guard の既定値・smoke-trial の pidof・am start で同じ。rnbeta を含む applicationId は0件', () => {

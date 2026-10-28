@@ -52,11 +52,11 @@ env:
   CCACHE_MAXSIZE: 2G
   # マーケティングバージョン。このワークフローが Info.plist 3つと MARKETING_VERSION に書き込む
   # （リポジトリ内の Info.plist・package.json は 2.45.0 のまま。ビルドに使われない）。
-  # 2.45.0 = App Store 公開済み（2026-10-13）。2.45.1 = K-120（警告の非表示）。
+  # 2.45.0 = App Store 公開済み（2026-10-13）。2.45.1 = K-120（警告の非表示）。2.45.2 = K-139（スマホのバッジ。2.45.1 は承認済みで閉じたため）。
   # ビルド番号は github.run_number を使う
   # （このワークフロー専用の連番。App Store Connect側のアプリ登録は2026-09-30時点で
   #  ビルド未提出のため、1からの連番で問題ない。SecondBrainJoinerと同じ方式）。
-  APP_VERSION: "2.45.1"
+  APP_VERSION: "2.45.2"
   TEAM_ID: "P63VK5792D"
 
 jobs:
