@@ -50,7 +50,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # The tests read the base and upstream commits with git show; the default checkout is shallow and lacks them.
       # A failed fetch fails the job (fail-closed: the tests must not be skipped).
@@ -101,7 +101,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout (sparse)
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           sparse-checkout: |
@@ -111,7 +111,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Java
-        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5.3.0
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: '17'
@@ -168,7 +168,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout (sparse)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           sparse-checkout: |
@@ -180,7 +180,7 @@ jobs:
         uses: ./.github/actions/weaver-prepare-js
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -208,7 +208,7 @@ jobs:
 
       - name: Restore Gradle cache
         if: ${{ !inputs.clear_cache }}
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.gradle/caches
@@ -278,7 +278,7 @@ jobs:
 
       - name: Hash and upload unchecked AAB
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: weaver-android-unchecked-${{ github.run_number }}-a${{ github.run_attempt }}
           path: |
@@ -298,7 +298,7 @@ jobs:
       checked_sha256: ${{ steps.checked.outputs.sha256 }}
     steps:
       - name: Checkout (sparse)
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           sparse-checkout: |
@@ -308,7 +308,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Java
-        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5.3.0
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: '17'
@@ -352,7 +352,7 @@ jobs:
           echo "WEAVER_BUNDLETOOL_JAR=$RUNNER_TEMP/bundletool.jar" >> "$GITHUB_ENV"
 
       - name: Download unchecked AAB
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: weaver-android-unchecked-${{ github.run_number }}-a${{ github.run_attempt }}
           path: ${{ runner.temp }}/in
@@ -415,7 +415,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout (sparse)
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           sparse-checkout: |
@@ -425,7 +425,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Java
-        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5.3.0
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: '17'
@@ -444,7 +444,7 @@ jobs:
           echo "signing=$MODE_OUT" >> "$GITHUB_OUTPUT"
 
       - name: Download unchecked AAB
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: weaver-android-unchecked-${{ github.run_number }}-a${{ github.run_attempt }}
           path: ${{ runner.temp }}/in
@@ -549,7 +549,7 @@ jobs:
 
       - name: Upload final artifact
         if: success()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: weaver-android-aab-${{ github.run_number }}-a${{ github.run_attempt }}-${{ steps.mode.outputs.signing == 'signed' && (inputs.for_submission && 'submission' || 'confirm') || 'unsigned-verification-only' }}
           path: ${{ runner.temp }}/out
