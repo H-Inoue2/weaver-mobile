@@ -65,7 +65,7 @@ runs:
     # through Cloudflare 524s and wedges config/patch + uploads for the shard.
     - name: Cache demo plugin fixture
       id: demo-plugin-cache
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: detox/e2e/support/fixtures/mattermost-plugin-demo-v0.11.1-linux-amd64.tar.gz
         key: mattermost-plugin-demo-linux-amd64-v0.11.1
