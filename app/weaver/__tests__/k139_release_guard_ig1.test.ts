@@ -425,8 +425,18 @@ describe('K-139 実リポジトリの静的確認（IT-14〜20）', () => {
             'app/weaver/__tests__/android_data_files.test.ts',
             'WEAVER.md',
             '.github/workflows/weaver-ios-testflight.yml',
+
+            // K-172: 新規の自社 TS 5件・上流 TS 4件・iOS 1件・固定テストの更新（案件別の名指し。k172_ の新規テスト・補助 .cjs は接頭辞で許可）
+            ...['unread_badge', 'unread_badge_subscription', 'notify_defaults', 'notify_defaults_runner', 'notify_defaults_hook'].map((f) => `app/weaver/${f}.ts`),
+            'app/components/channel_item/index.ts',
+            'app/actions/websocket/posts.ts',
+            'app/screens/home/tab_bar/home.tsx',
+            'app/screens/home/hooks/use_home_effects.ts',
+            'ios/Gekidou/Sources/Gekidou/Storage/Database+Mentions.swift',
+            'app/weaver/__tests__/upstream_checks.test.ts',
         ]);
-        expect([...names].filter((n) => !allowed.has(n))).toEqual([]);
+        const k172Test = (n: string) => n.startsWith('app/weaver/__tests__/k172_');
+        expect([...names].filter((n) => !allowed.has(n) && !k172Test(n))).toEqual([]);
         for (const z of ['app/weaver/__tests__/release_guard.test.ts', 'app/weaver/__tests__/android_shared_only.test.ts', APPD_REL, '.github/workflows/weaver-android-aab.yml', 'package.json']) {
             expect([z, names.has(z)]).toEqual([z, false]);
         }
