@@ -164,7 +164,9 @@ describe('ソース変更（詳細設計 §2.2）', () => {
             return d.added.every(ok) && d.removed.every(ok);
         };
         const k139Ios = ['ios/NotificationService/NotificationService.swift', '.github/workflows/weaver-ios-testflight.yml'];
-        const forbidden = [...names].filter((n) => !k139Ios.includes(n) && /^ios\/|weaver-ios-.*\.yml$|configure_manual_signing\.rb$|release_guard\.test\.ts$/.test(n) && !iosVersionBumpOnly(n));
+        // K-172（チャンネル未読バッジ）が正当に変える iOS ファイル1件（案件別の配列）
+        const k172Ios = ['ios/Gekidou/Sources/Gekidou/Storage/Database+Mentions.swift'];
+        const forbidden = [...names].filter((n) => !k139Ios.includes(n) && !k172Ios.includes(n) && /^ios\/|weaver-ios-.*\.yml$|configure_manual_signing\.rb$|release_guard\.test\.ts$/.test(n) && !iosVersionBumpOnly(n));
         expect(forbidden).toEqual([]);
         const allowedPrefix = /^(android\/|\.github\/|app\/weaver\/)/;
         // K-114（押した時点のサーバーに固定）が正当に変える上流6ファイル。理由つきで名指し許可する（ディレクトリ単位では許可しない＝K-79の検出力を保つ。新しい上流変更は、ここへ足さない限り落ちる）
@@ -183,7 +185,14 @@ describe('ソース変更（詳細設計 §2.2）', () => {
             'app/screens/home/channel_list/categories_list/header/index.ts',
             'app/screens/home/channel_list/categories_list/header/index.test.tsx',
         ];
-        const exceptions = new Set(['WEAVER.md', '.gitignore', '.gitattributes', 'package.json', 'package-lock.json', ...k114Upstream, ...k120Upstream, ...k139Ios]);
+        // K-172 が正当に変える上流4ファイル（案件別の配列。ほかの案件と共有しない）
+        const k172Upstream = [
+            'app/components/channel_item/index.ts',
+            'app/actions/websocket/posts.ts',
+            'app/screens/home/tab_bar/home.tsx',
+            'app/screens/home/hooks/use_home_effects.ts',
+        ];
+        const exceptions = new Set(['WEAVER.md', '.gitignore', '.gitattributes', 'package.json', 'package-lock.json', ...k114Upstream, ...k120Upstream, ...k139Ios, ...k172Ios, ...k172Upstream]);
         const outside = [...names].filter((n) => !allowedPrefix.test(n) && !exceptions.has(n) && !/^\.claude\//.test(n));
         expect(outside).toEqual([]);
         const ga = lineDiff(baseText('.gitattributes'), s.read('.gitattributes'));

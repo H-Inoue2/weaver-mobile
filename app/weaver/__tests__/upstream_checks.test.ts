@@ -51,7 +51,7 @@ describe('K3・K4・K6・K7 と外部送信の回帰', () => {
         expect(hits).toEqual([]);
     });
 
-    it('UT-145 K6: app/weaver の外で import 指定子に /weaver/ を含む非テストファイルが、ちょうど22ファイル', () => {
+    it('UT-145 K6: app/weaver の外で import 指定子に /weaver/ を含む非テストファイルが、ちょうど26ファイル', () => {
         const EXPECTED = [
             'app/screens/settings/about/about.tsx',
             'app/screens/settings/settings.tsx',
@@ -75,6 +75,11 @@ describe('K3・K4・K6・K7 と外部送信の回帰', () => {
             'app/screens/channel/header/header.tsx',
             'app/screens/home/channel_list/servers/servers_list/server_item/index.ts',
             'app/screens/home/channel_list/categories_list/header/index.ts',
+            // K-172（チャンネル未読バッジ・アイコンの数字・通知の自動設定）
+            'app/components/channel_item/index.ts',
+            'app/actions/websocket/posts.ts',
+            'app/screens/home/tab_bar/home.tsx',
+            'app/screens/home/hooks/use_home_effects.ts',
         ].sort();
         const specRe = /(?:from\s+|import\s+|require\(\s*)['"]([^'"]+)['"]/g;
         const hits = sourceFiles(['app']).filter((f) => {
