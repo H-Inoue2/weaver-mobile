@@ -15,6 +15,9 @@
 #   IG1 B: AppDelegate.swift が前面フラグを DidBecomeActive で true・WillResignActive で false に、関数の直下で書いていること。
 #   形が違えば「人手確認が必要」として FAIL にする。合格時は何も出力しない（既存の出力は変えない）。
 #
+# K-172 追加: K172（ios/ を読むので --shared-only では実行しない）
+#   Database+Mentions.swift が「ある」ときだけ、アイコンの数字の規則の固定文字列（message_count と "push":"mention"）が残っていること。無ければ何もしない。
+#
 # 検査（G1〜G5）:
 #   G1 常に: ios/Mattermost.xcodeproj/project.pbxproj の TARGETED_DEVICE_FAMILY（条件付きキーを含む全件）が 1 で、件数が6以上
 #   G2 常に: ios/Mattermost/Info.plist の NS*UsageDescription の値に $(PRODUCT_NAME) と Mattermost（大文字小文字不問）が無い
@@ -500,6 +503,22 @@ unless ($shared) {
             }
             if ($res->{found} && @res_true) {
                 ig1_fail($ad, $res_true[0]->{line}, $lead . 'WillResignActive に true がある');
+            }
+        }
+    }
+}
+
+# ---- K172: アイコンの数字の集計（Database+Mentions.swift）に、規則の固定文字列が残っていること（K-172）----
+# ファイルが「ある」ときだけ見る（無いときは何もしない＝最小の木のフィクスチャを壊さない）。--shared-only では ios/ を読まない。
+# このファイルは複数行文字列（""" ）を使うため、IG1 の字句走査は使えない。単純な文字列の有無で見る。合格時は何も出力しない。
+$check = "K172";
+unless ($shared) {
+    my $mt = 'ios/Gekidou/Sources/Gekidou/Storage/Database+Mentions.swift';
+    my $mt_text = slurp("$root/$mt");
+    if (defined $mt_text) {
+        for my $needle ('message_count', '"push":"mention"') {
+            if (index($mt_text, $needle) < 0) {
+                violation($mt, "K172: 固定文字列 $needle が無い（人手確認が必要）");
             }
         }
     }

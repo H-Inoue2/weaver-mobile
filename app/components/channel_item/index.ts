@@ -1,10 +1,12 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-172, 2026-11): the unread number on a channel row counts ordinary unread messages (max of message count and mentions) via getChannelBadgeCount (app/weaver/unread_badge.ts), not only mentions.
+
 import {withDatabase, withObservables} from '@nozbe/watermelondb/react';
 import React from 'react';
 import {of as of$} from 'rxjs';
-import {switchMap, distinctUntilChanged} from 'rxjs/operators';
+import {switchMap, distinctUntilChanged, combineLatestWith} from 'rxjs/operators';
 
 import {observeChannelsWithCalls} from '@calls/state';
 import {General} from '@constants';
@@ -13,6 +15,8 @@ import {observeIsMutedSetting, observeMyChannel, queryChannelMembers} from '@que
 import {queryDraft} from '@queries/servers/drafts';
 import {observeCurrentChannelId, observeCurrentUserId} from '@queries/servers/system';
 import {observeTeam} from '@queries/servers/team';
+
+import {getChannelBadgeCount} from '../../weaver/unread_badge';
 
 import ChannelItem from './channel_item';
 
@@ -89,9 +93,17 @@ const enhance = withObservables(['channel', 'showTeamName', 'shouldHighlightActi
             distinctUntilChanged(),
         ) : of$(false);
 
+    const isDmGm = channel.type === General.DM_CHANNEL || channel.type === General.GM_CHANNEL;
     const mentionsCount = shouldHighlightState ?
         myChannel.pipe(
-            switchMap((mc) => of$(mc?.mentionsCount)),
+            combineLatestWith(isMuted),
+            switchMap(([mc, muted]) => of$(mc ? getChannelBadgeCount({
+                isDmGm,
+                isMuted: muted,
+                isUnread: mc.isUnread,
+                messageCount: mc.messageCount,
+                mentionsCount: mc.mentionsCount,
+            }) : 0)),
             distinctUntilChanged(),
         ) : of$(0);
 

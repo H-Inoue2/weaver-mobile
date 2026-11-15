@@ -100,7 +100,7 @@ Mattermost Mobile（Apache License 2.0）を基に、Weaver 向けに変更し�
 | `android/app/src/main/AndroidManifest.xml` | `FOREGROUND_SERVICE_MICROPHONE` と、ライブラリ由来の通話用フォアグラウンドサービス2件（`MMCallsForegroundService`・`MediaProjectionService`）を削除。`resizeableActivity` と `usesCleartextTraffic` を `false` に。先頭に変更表示 |
 | `android/app/src/main/res/xml/network_security_config.xml` | 平文通信を禁止（`cleartextTrafficPermitted="false"`）。ユーザー追加CAの信頼は残す。先頭に変更表示 |
 | `android/app/src/main/res/values/strings.xml` | `app_name` を `Weaver`（`app/weaver/constants.ts` の `APP_NAME` と同じ値）に |
-| `.github/scripts/weaver_release_guard.sh` | `--shared-only`（`ios/` の検査 G1・G2 を飛ばす）を追加。IG1（通知拡張のバッジ代入と、AppDelegate の前面フラグ書き込みの形の検査）を追加（`--shared-only` では走らない）。合格時の出力は変えていない（K-139） |
+| `.github/scripts/weaver_release_guard.sh` | `--shared-only`（`ios/` の検査 G1・G2 を飛ばす）を追加。IG1（通知拡張のバッジ代入と、AppDelegate の前面フラグ書き込みの形の検査）を追加（`--shared-only` では走らない）。合格時の出力は変えていない（K-139）。`Database+Mentions.swift` がある場合に、アイコンの数字の規則の固定文字列が残っていることを確かめる検査 K172 を追加（K-172） |
 | `.gitignore` | `*.jks`・`*.p12`・`*.pem`・`*.p8`・`*.b64`・`*.base64`・`*service-account*.json`・`*service_account*.json`・`*-adminsdk-*.json` を追加（鍵・認証情報の誤コミット防止） |
 | `app/routes/(modals)/(channel_info)/channel_add_members.tsx` | メンバー追加画面を、params の `serverUrl` のサーバーに固定（`app/weaver/components/pinned_server_scope.tsx` で包む）。last_active が替わっても文脈が入れ替わらない（K-114） |
 | `app/routes/(modals)/(channel_info)/index.tsx` | チャンネル情報画面を、params の `serverUrl` のサーバーに固定（同上。K-114） |
@@ -115,9 +115,13 @@ Mattermost Mobile（Apache License 2.0）を基に、Weaver 向けに変更し�
 | `app/screens/settings/display/display.tsx` | 表示設定に「言語」の項目（`app/weaver/components/settings_language_item`）を追加（K-39） |
 | `app/init/launch.ts` | 起動 URL が SSO の戻り URL のときは、ディープリンク起動として扱わない（`app/weaver/sso_callback_url.ts`。K-39） |
 | `app/routes/+native-intent.ts` | SSO の戻り URL（スキーム有無とも）をディープリンク処理より前に無視する。ログイン後に「無効なリンク」が出ないように（K-39） |
-| `app/screens/home/hooks/use_home_effects.ts` | 開発ビルド（`__DEV__`）だけで、起動時の props を記録する（無効なリンクの警告の出どころの調査用。クエリ文字列は記録しない。K-39） |
+| `app/screens/home/hooks/use_home_effects.ts` | 開発ビルド（`__DEV__`）だけで、起動時の props を記録する（無効なリンクの警告の出どころの調査用。クエリ文字列は記録しない。K-39）。あわせて、通知の初期値（個人＝すべて・タウンスクエア＝メンションのみ）を、利用者ごとに1回だけ整える処理（`app/weaver/notify_defaults_hook.ts`）を呼ぶ（K-172） |
 | `app/screens/home/channel_list/servers/servers_list/server_item/index.ts` | `SHOW_PUSH_PROXY_WARNING`（`app/weaver/push_proxy_warning.ts`）が `false` の間、サーバー一覧の各行の警告（文言と三角アイコン）を、画面へ渡す値を `verified` にして止める。端末 DB の検証状態は変えない。戻し方: `SHOW_PUSH_PROXY_WARNING` を `true` にして再ビルド（テスト・他文書の更新が要る。K-120 詳細設計 §6）。K-120 |
 | `app/screens/home/channel_list/categories_list/header/index.ts` | 同じ定数が `false` の間、ホームのサーバー名の横の警告アイコンを止める。注意: 次の K-39 の記述が K-120 で古くなった（ソースは変えない。`true` に戻せば再び正しい）: `app/utils/push_proxy.ts` L24（コメント「ヘッダーの警告アイコン…は従来どおり状態を示す」）、`app/weaver/__tests__/push_proxy_connect_alert.test.ts` L6・L56・L82、`app/utils/push_proxy.test.ts` L74。K-120 |
+| `app/actions/websocket/posts.ts` | 新着で設定するメッセージ数を、チャンネルを既読にした後の最初の1件目から数え直す（既読前の件数を引き継がない）。見えているチャンネル・未読のままのチャンネルは現行どおり積み増し（`app/weaver/unread_badge.ts` の `getNextMessageCount`。K-172） |
+| `app/components/channel_item/index.ts` | チャンネル一覧の各行の数字を、メンション数だけでなく、通常のチャンネルの未読の件数（件数とメンション数の大きい方）も数える（`app/weaver/unread_badge.ts` の `getChannelBadgeCount`。DM・GM・ミュートは現行どおりメンション数。K-172） |
+| `app/screens/home/tab_bar/home.tsx` | ホームタブの数字とアプリのアイコンの合計を、自社の購読（`app/weaver/unread_badge_subscription.ts`）の値に替える。通常のチャンネルの未読も数える。サーバー一覧のボタンが使う共有の購読は変えない（K-172） |
+| `ios/Gekidou/Sources/Gekidou/Storage/Database+Mentions.swift` | アプリが起動していない間に届いた通知・既読で通知を消したときのアイコンの数字の集計（`getChannelMentions` の SQL）を、通常のチャンネルの未読も数える規則（`app/weaver/unread_badge.ts` と同じ）に替える。SUM の型は Int64・Double の両方を受ける（K-172） |
 
 `.gitattributes` には、Android のワークフロー・データファイルを LF に固定する行も追加した（K-79）。
 

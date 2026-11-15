@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-172, 2026-11): the message count set by a new post starts again from 1 after the channel was read (getNextMessageCount in app/weaver/unread_badge.ts), instead of continuing from the count before it was read.
+
 import {DeviceEventEmitter} from 'react-native';
 
 import {storeMyChannelsForTeam, markChannelAsUnread, markChannelAsViewed, updateLastPostAt} from '@actions/local/channel';
@@ -26,6 +28,8 @@ import {NavigationStore} from '@store/navigation_store';
 import {hasArrayChanged, isTablet} from '@utils/helpers';
 import {logDebug, logWarning} from '@utils/log';
 import {isFromWebhook, isPostEphemeral, isSystemMessage, restoreEphemeralIdentityFieldsForEdit, shouldIgnorePost} from '@utils/post';
+
+import {getNextMessageCount} from '../../weaver/unread_badge';
 
 import type {Model} from '@nozbe/watermelondb';
 import type MyChannelModel from '@typings/database/models/servers/my_channel';
@@ -151,12 +155,13 @@ export async function handleNewPostEvent(serverUrl: string, msg: WebSocketMessag
         } else if (!isCRTEnabled || !post.root_id) {
             const hasMentions = Boolean(msg.data.mentions?.includes(currentUserId));
             const hasUrgentMention = hasMentions && post.metadata?.priority?.priority === 'urgent';
+            const isChannelVisible = post.channel_id === currentChannelId && (NavigationStore.getScreensInStack().includes(Screens.CHANNEL) || isTablet());
             preparedMyChannelHack(myChannel);
             const {member: unreadAt} = await markChannelAsUnread(
                 serverUrl,
                 {
                     channelId: post.channel_id,
-                    messageCount: myChannel.messageCount + 1,
+                    messageCount: getNextMessageCount({isVisible: isChannelVisible, isUnread: myChannel.isUnread, messageCount: myChannel.messageCount}),
                     mentionsCount: myChannel.mentionsCount + (hasMentions ? 1 : 0),
                     urgentMentionCount: myChannel.urgentMentionCount + (hasUrgentMention ? 1 : 0),
                     lastViewed: myChannel.lastViewedAt,

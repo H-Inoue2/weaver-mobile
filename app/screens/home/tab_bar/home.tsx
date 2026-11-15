@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+// Modified for Weaver (K-172, 2026-11): the home tab number and the app icon badge use the total from subscribeWeaverBadgeByServer (app/weaver/unread_badge_subscription.ts), which also counts ordinary unread messages, instead of mentions only.
+
 import RNUtils from '@mattermost/rnutils/src';
 import React, {useEffect, useState} from 'react';
 import {DeviceEventEmitter, Platform, StyleSheet, View} from 'react-native';
@@ -10,11 +12,12 @@ import Badge from '@components/badge';
 import CompassIcon from '@components/compass_icon';
 import {BOTTOM_TAB_ICON_SIZE} from '@constants/view';
 import {subscribeAllServers} from '@database/subscription/servers';
-import {subscribeUnreadAndMentionsByServer, type UnreadObserverArgs} from '@database/subscription/unreads';
 import {useAppState} from '@hooks/device';
 import useDidUpdate from '@hooks/did_update';
 import {logDebug} from '@utils/log';
 import {changeOpacity} from '@utils/theme';
+
+import {subscribeWeaverBadgeByServer, type WeaverBadgeState} from '../../../weaver/unread_badge_subscription';
 
 import type ServersModel from '@typings/database/models/app/servers';
 import type {UnreadMessages, UnreadSubscription} from '@typings/database/subscriptions';
@@ -69,18 +72,10 @@ const updateBadge = () => {
     }
 };
 
-const unreadsSubscription = (serverUrl: string, {myChannels, settings, threadMentionCount}: UnreadObserverArgs) => {
+const unreadsSubscription = (serverUrl: string, {mentions, unread}: WeaverBadgeState) => {
     const unreads = subscriptions.get(serverUrl);
     if (unreads) {
-        let mentions = 0;
-        let unread = false;
-        for (const myChannel of myChannels) {
-            const isMuted = settings?.[myChannel.id]?.mark_unread === 'mention';
-            mentions += isMuted ? 0 : myChannel.mentionsCount;
-            unread = unread || (myChannel.isUnread && !isMuted);
-        }
-
-        unreads.mentions = mentions + threadMentionCount;
+        unreads.mentions = mentions;
         unreads.unread = unread;
         subscriptions.set(serverUrl, unreads);
         DeviceEventEmitter.emit(HOME_TOTAL_MENTIONS_EVENT);
@@ -106,7 +101,7 @@ const serversObserver = async (servers: ServersModel[]) => {
                 unread: false,
             };
             subscriptions.set(url, unreads);
-            unreads.subscription = subscribeUnreadAndMentionsByServer(url, unreadsSubscription);
+            unreads.subscription = subscribeWeaverBadgeByServer(url, unreadsSubscription);
         } else if (!lastActiveAt && subscriptions.has(url)) {
             subscriptions.get(url)?.subscription?.unsubscribe();
             subscriptions.delete(url);

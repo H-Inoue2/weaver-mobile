@@ -14,16 +14,27 @@ extension Database {
         return mentions
     }
     
+    // Modified for Weaver (K-172, 2026-11): ordinary (O/P) unread channels count as max(message_count, mentions_count), except where the channel's push setting is explicitly "mention" or "none" (mentions only). Mirrors app/weaver/unread_badge.ts getBadgeTermForChannel.
     public func getChannelMentions(_ db: Connection) -> Int {
         let stmtString = """
-        SELECT SUM(my.mentions_count) \
+        SELECT SUM(CASE WHEN c.type IN ('O','P') AND my.is_unread = 1 \
+        AND mys.notify_props NOT LIKE '%"push":"mention"%' \
+        AND mys.notify_props NOT LIKE '%"push":"none"%' \
+        THEN MAX(my.message_count, my.mentions_count) ELSE my.mentions_count END) \
         FROM MyChannel my \
         INNER JOIN MyChannelSettings mys ON mys.id=my.id \
         INNER JOIN Channel c INDEXED BY sqlite_autoindex_Channel_1 ON c.id=my.id \
         WHERE c.delete_at = 0 AND mys.notify_props NOT LIKE '%"mark_unread":"mention"%'
         """
-        let mentions = try? db.scalar(stmtString) as? Double
-        return Int(mentions ?? 0)
+        // SUM of integer terms comes back as Int64; accept Double as well (the previous query's type).
+        let value = try? db.scalar(stmtString)
+        if let intValue = value as? Int64 {
+            return Int(intValue)
+        }
+        if let doubleValue = value as? Double {
+            return Int(doubleValue)
+        }
+        return 0
     }
 
     public func getThreadMentions(_ db: Connection) -> Int {

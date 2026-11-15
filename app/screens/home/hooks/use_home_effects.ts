@@ -2,6 +2,7 @@
 // See LICENSE.txt for license information.
 
 // Modified for Weaver (K-39, 2026-10): development-only log of the launch props (to find where an invalid-link alert comes from).
+// Modified for Weaver (K-172, 2026-11): also calls useWeaverNotifyDefaults (app/weaver/notify_defaults_hook.ts), which sets the default notification settings once per user.
 
 import {useHardwareKeyboardEvents} from '@mattermost/hardware-keyboard';
 import {useEffect, useCallback, useMemo} from 'react';
@@ -22,6 +23,8 @@ import {logDebug, logError} from '@utils/log';
 import {alertChannelArchived, alertChannelRemove, alertTeamRemove} from '@utils/navigation';
 import {notificationError} from '@utils/notification';
 
+import {useWeaverNotifyDefaults} from '../../../weaver/notify_defaults_hook';
+
 import type {DeepLinkWithData, LaunchProps} from '@typings/launch';
 
 const updateTimezoneIfNeeded = async () => {
@@ -41,6 +44,8 @@ export function useHomeScreenEffects(props: LaunchProps) {
     const intl = useIntl();
     const appState = useAppState();
     const serverUrl = useServerUrl();
+
+    useWeaverNotifyDefaults(serverUrl, appState);
 
     useDidMount(() => {
         SecurityManager.start();
