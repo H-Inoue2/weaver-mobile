@@ -52,10 +52,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # The tests read the base and upstream commits with git show; the default checkout is shallow and lacks them.
+      # The tests read the base, upstream and K-139 iOS reference (093e1c1bdc) commits with git show/diff; the default checkout is shallow and lacks them.
       # A failed fetch fails the job (fail-closed: the tests must not be skipped).
       - name: Fetch reference commits
-        run: git fetch --no-tags --depth=1 origin 01fbf86bb8ed42e66ecf1e0f33485ebd4b9c37af 0c0d6c48ecd1432a80ecdbe69aafa394af49d03c
+        run: git fetch --no-tags --depth=1 origin 01fbf86bb8ed42e66ecf1e0f33485ebd4b9c37af 0c0d6c48ecd1432a80ecdbe69aafa394af49d03c 093e1c1bdc1e516f5ff9094c2f8bf82744224d49
 
       - name: Prepare JS
         uses: ./.github/actions/weaver-prepare-js
