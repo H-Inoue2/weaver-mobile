@@ -26,8 +26,26 @@ extension Database {
         INNER JOIN Channel c INDEXED BY sqlite_autoindex_Channel_1 ON c.id=my.id \
         WHERE c.delete_at = 0 AND mys.notify_props NOT LIKE '%"mark_unread":"mention"%'
         """
-        // SUM of integer terms comes back as Int64; accept Double as well (the previous query's type).
-        let value = try? db.scalar(stmtString)
+        // If the new query fails (e.g. a column or SQL problem on a real device), fall back to the previous query (mentions only)
+        // rather than returning 0, so the icon never shows fewer than the mentions.
+        do {
+            return try channelMentionsValue(db.scalar(stmtString))
+        } catch {
+            print("Weaver K-172: badge query failed, falling back to mentions only: \(error)")
+        }
+        let fallbackString = """
+        SELECT SUM(my.mentions_count) \
+        FROM MyChannel my \
+        INNER JOIN MyChannelSettings mys ON mys.id=my.id \
+        INNER JOIN Channel c INDEXED BY sqlite_autoindex_Channel_1 ON c.id=my.id \
+        WHERE c.delete_at = 0 AND mys.notify_props NOT LIKE '%"mark_unread":"mention"%'
+        """
+        let mentions = try? db.scalar(fallbackString) as? Double
+        return Int(mentions ?? 0)
+    }
+
+    // SUM of integer terms comes back as Int64; accept Double as well (the previous query's type). NULL (no rows) is 0.
+    private func channelMentionsValue(_ value: Binding?) -> Int {
         if let intValue = value as? Int64 {
             return Int(intValue)
         }
