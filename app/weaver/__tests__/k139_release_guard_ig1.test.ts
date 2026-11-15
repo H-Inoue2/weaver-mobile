@@ -14,6 +14,7 @@ const android = require('./android_test_support.cjs');
 
 const SWIFT_REL = 'ios/NotificationService/NotificationService.swift';
 const APPD_REL = 'ios/Mattermost/AppDelegate.swift';
+const WORKFLOW_ANDROID_REL = '.github/workflows/weaver-android-aab.yml';
 const COND: string = support.SWIFT_COND;
 const BLOCK: string = support.SWIFT_BADGE_BLOCK;
 const TRUE_LINE: string = support.APPD_TRUE;
@@ -411,7 +412,7 @@ describe('K-139 実リポジトリの静的確認（IT-14〜20）', () => {
         expect(y).not.toContain('G1・G2・G5 のみ');
         expect(y).not.toContain('G1〜G5 すべて');
     });
-    it('IT-17 変更ファイルは許可の8件に限る・差分0を守るファイルは差分0', () => {
+    it('IT-17 変更ファイルは許可の件に限る・差分0を守るファイルは差分0（Android ワークフローは基準コミット取得の1行だけ許可）', () => {
         const names = new Set<string>([
             ...(git(['diff', '--name-only', '093e1c1bdc']).stdout as string).split('\n'),
             ...(git(['ls-files', '--others', '--exclude-standard']).stdout as string).split('\n'),
@@ -434,12 +435,21 @@ describe('K-139 実リポジトリの静的確認（IT-14〜20）', () => {
             'app/screens/home/hooks/use_home_effects.ts',
             'ios/Gekidou/Sources/Gekidou/Storage/Database+Mentions.swift',
             'app/weaver/__tests__/upstream_checks.test.ts',
+            // K-172: Android CI の Verify が基準コミット 093e1c1bdc を git show/diff で読めるようにする。変更は `Fetch reference commits` の fetch 対象に 093e1c1bdc… を足した1行（とそのコメント）だけ（下で内容も確認する）
+            WORKFLOW_ANDROID_REL,
         ]);
         const k172Test = (n: string) => n.startsWith('app/weaver/__tests__/k172_');
         expect([...names].filter((n) => !allowed.has(n) && !k172Test(n))).toEqual([]);
-        for (const z of ['app/weaver/__tests__/release_guard.test.ts', 'app/weaver/__tests__/android_shared_only.test.ts', APPD_REL, '.github/workflows/weaver-android-aab.yml', 'package.json']) {
+        for (const z of ['app/weaver/__tests__/release_guard.test.ts', 'app/weaver/__tests__/android_shared_only.test.ts', APPD_REL, 'package.json']) {
             expect([z, names.has(z)]).toEqual([z, false]);
         }
+        // Android ワークフローの許可が実在し（過大残存防止）、差分が fetch 1行＋そのコメント1行に限られる
+        expect(names.has(WORKFLOW_ANDROID_REL)).toBe(true);
+        const wd = (git(['diff', '093e1c1bdc', '--', WORKFLOW_ANDROID_REL]).stdout as string).replace(/\r/g, '').split('\n');
+        const wRemoved = wd.filter((l) => l.startsWith('-') && !l.startsWith('---'));
+        const wAdded = wd.filter((l) => l.startsWith('+') && !l.startsWith('+++'));
+        expect([wRemoved.length, wAdded.length]).toEqual([2, 2]);
+        expect(wAdded.filter((l) => l.includes('git fetch --no-tags --depth=1 origin') && l.includes('093e1c1bdc'))).toHaveLength(1);
     });
     it('IT-19 k139Ios の2件（swift・iOS ワークフロー）が基点 01fbf86bb8 との差分に実在する（例外の過大残存防止）', () => {
         const r = android.git(['diff', '--name-only', android.BASE_SHA]);
