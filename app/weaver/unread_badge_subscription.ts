@@ -41,7 +41,7 @@ export const subscribeWeaverBadgeByServer = (serverUrl: string, observer: Weaver
 
         subscription = database.get<MyChannelModel>(MY_CHANNEL).
             query(Q.on(CHANNEL, Q.where('delete_at', Q.eq(0)))).
-            observeWithColumns(['mentions_count', 'is_unread', 'message_count']).
+            observeWithColumns(['mentions_count', 'is_unread', 'message_count', 'last_viewed_at']).
             pipe(
                 combineLatestWith(observeAllMyChannelNotifyProps(database)),
                 combineLatestWith(dmGmIds),
@@ -59,6 +59,7 @@ export const subscribeWeaverBadgeByServer = (serverUrl: string, observer: Weaver
                             messageCount: mc.messageCount,
                             mentionsCount: mc.mentionsCount,
                             notifyProps,
+                            lastViewedAt: mc.lastViewedAt,
                         };
                     });
                     return {mentions: sumServerBadge(channels, mentions), unread};

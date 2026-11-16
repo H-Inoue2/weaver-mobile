@@ -92,7 +92,7 @@ Mattermost Mobile（Apache License 2.0）を基に、Weaver 向けに変更し�
 | `ios/NotificationService/NotificationService.swift` | アプリが使用中（`ApplicationIsRunning` が `true`）の通知で、バッジを消す（`nil`）のを前面（`ApplicationIsForeground` が `true`）のときだけにした。それ以外はサーバーが付けた値を残す。該当箇所に変更表示（K-139） |
 | `assets/base/images/icon.png` | アプリ内通知の既定アイコンを Weaver に |
 | `eslint.config.mjs` | 末尾に Weaver 用ヘッダーの上書きブロックを追加 |
-| `.github/workflows/weaver-ios-testflight.yml` | ビルド時ガードと、確認用／提出用ビルドの区別（`for_submission`）を追加。`APP_VERSION` を 2.45.3 に（iOS のみ。K-139で2.45.2、K-172で2.45.3） |
+| `.github/workflows/weaver-ios-testflight.yml` | ビルド時ガードと、確認用／提出用ビルドの区別（`for_submission`）を追加。`APP_VERSION` を 2.45.4 に（iOS のみ。K-139で2.45.2、K-172で2.45.3、K-172/R3で2.45.4） |
 | `NOTICE.txt` | 冒頭に Weaver 版の変更の旨を追記 |
 | `.gitattributes` | `.github/scripts/*.sh` を LF に固定 |
 | `android/app/build.gradle` | `namespace` を上流のソースの `package` に合わせて `com.mattermost.rnbeta` に戻した（`applicationId` は `com.metarchitect.Weaver`）。先頭に変更表示（K-79） |
@@ -120,8 +120,8 @@ Mattermost Mobile（Apache License 2.0）を基に、Weaver 向けに変更し�
 | `app/screens/home/channel_list/categories_list/header/index.ts` | 同じ定数が `false` の間、ホームのサーバー名の横の警告アイコンを止める。注意: 次の K-39 の記述が K-120 で古くなった（ソースは変えない。`true` に戻せば再び正しい）: `app/utils/push_proxy.ts` L24（コメント「ヘッダーの警告アイコン…は従来どおり状態を示す」）、`app/weaver/__tests__/push_proxy_connect_alert.test.ts` L6・L56・L82、`app/utils/push_proxy.test.ts` L74。K-120 |
 | `app/actions/websocket/posts.ts` | 新着で設定するメッセージ数を、チャンネルを既読にした後の最初の1件目から数え直す（既読前の件数を引き継がない）。見えているチャンネル・未読のままのチャンネルは現行どおり積み増し（`app/weaver/unread_badge.ts` の `getNextMessageCount`。K-172） |
 | `app/components/channel_item/index.ts` | チャンネル一覧の各行の数字を、メンション数だけでなく、通常のチャンネルの未読の件数（件数とメンション数の大きい方）も数える（`app/weaver/unread_badge.ts` の `getChannelBadgeCount`。DM・GM・ミュートは現行どおりメンション数。K-172） |
-| `app/screens/home/tab_bar/home.tsx` | ホームタブの数字とアプリのアイコンの合計を、自社の購読（`app/weaver/unread_badge_subscription.ts`）の値に替える。通常のチャンネルの未読も数える。サーバー一覧のボタンが使う共有の購読は変えない（K-172） |
-| `ios/Gekidou/Sources/Gekidou/Storage/Database+Mentions.swift` | アプリが起動していない間に届いた通知・既読で通知を消したときのアイコンの数字の集計（`getChannelMentions` の SQL）を、通常のチャンネルの未読も数える規則（`app/weaver/unread_badge.ts` と同じ）に替える。SUM の型は Int64・Double の両方を受ける（K-172） |
+| `app/screens/home/tab_bar/home.tsx` | ホームタブの数字とアプリのアイコンの合計を、自社の購読（`app/weaver/unread_badge_subscription.ts`）の値に替える。通常のチャンネルの未読も数える（一度も開いていないチャンネルは足さない＝K-172/R3）。サーバー一覧のボタンが使う共有の購読は変えない（K-172） |
+| `ios/Gekidou/Sources/Gekidou/Storage/Database+Mentions.swift` | アプリが起動していない間に届いた通知・既読で通知を消したときのアイコンの数字の集計（`getChannelMentions` の SQL）を、通常のチャンネルの未読も数える規則（`app/weaver/unread_badge.ts` と同じ。一度も開いていないチャンネルは足さない＝K-172/R3）に替える。SUM の型は Int64・Double の両方を受ける（K-172） |
 
 `.gitattributes` には、Android のワークフロー・データファイルを LF に固定する行も追加した（K-79）。
 

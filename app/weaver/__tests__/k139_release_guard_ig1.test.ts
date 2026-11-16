@@ -402,9 +402,9 @@ describe('K-139 実リポジトリの静的確認（IT-14〜20）', () => {
         expect(rows).toHaveLength(1);
         expect(support.read(SWIFT_REL)).toContain('Modified for Weaver');
     });
-    it('IT-16 iOS ワークフロー: APP_VERSION 2.45.3・版の書き込みは env.APP_VERSION のまま・ガード説明コメントが IG1 を含み旧表現が無い', () => {
+    it('IT-16 iOS ワークフロー: APP_VERSION 2.45.4・版の書き込みは env.APP_VERSION のまま・ガード説明コメントが IG1 を含み旧表現が無い', () => {
         const y: string = support.read('.github/workflows/weaver-ios-testflight.yml');
-        expect(/^\s*APP_VERSION:\s*"2\.45\.3"/m.test(y)).toBe(true);
+        expect(/^\s*APP_VERSION:\s*"2\.45\.4"/m.test(y)).toBe(true);
         const plist = y.split('\n').filter((l) => l.includes('PlistBuddy') && l.includes('CFBundleShortVersionString'));
         expect(plist).toHaveLength(2);
         expect(plist.every((l) => l.includes('${{ env.APP_VERSION }}'))).toBe(true);

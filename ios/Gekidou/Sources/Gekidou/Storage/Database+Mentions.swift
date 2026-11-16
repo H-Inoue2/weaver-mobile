@@ -14,10 +14,10 @@ extension Database {
         return mentions
     }
     
-    // Modified for Weaver (K-172, 2026-11): ordinary (O/P) unread channels count as max(message_count, mentions_count), except where the channel's push setting is explicitly "mention" or "none" (mentions only). Mirrors app/weaver/unread_badge.ts getBadgeTermForChannel.
+    // Modified for Weaver (K-172, 2026-11): ordinary (O/P) unread channels count as max(message_count, mentions_count), except where the channel's push setting is explicitly "mention" or "none" (mentions only), and except channels never opened on this device (last_viewed_at <= 0; mentions only, K-172/R3 B8). Mirrors app/weaver/unread_badge.ts getBadgeTermForChannel.
     public func getChannelMentions(_ db: Connection) -> Int {
         let stmtString = """
-        SELECT SUM(CASE WHEN c.type IN ('O','P') AND my.is_unread = 1 \
+        SELECT SUM(CASE WHEN c.type IN ('O','P') AND my.is_unread = 1 AND my.last_viewed_at > 0 \
         AND mys.notify_props NOT LIKE '%"push":"mention"%' \
         AND mys.notify_props NOT LIKE '%"push":"none"%' \
         THEN MAX(my.message_count, my.mentions_count) ELSE my.mentions_count END) \
