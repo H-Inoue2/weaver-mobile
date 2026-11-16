@@ -162,6 +162,20 @@ describe('IT-03・IT-04・UT-S01 ホームタブとアイコンの合計', () =>
         await expectBoth(2, 2);
     });
 
+    it('UT-S03 一度も開いていない未読14件のチャンネルを開く（last_viewed_at だけが0→正に変わる。件数・未読は不変）→合計が再計算され、点（-1）・0から14に増える（購読が last_viewed_at を観測している確認）', async () => {
+        await seed({id: 'never', isUnread: true, messageCount: 14, mentionsCount: 0, lastViewedAt: 0});
+        mount();
+        await waitFor(() => expect(tabValue()).toBe(-1));
+        await leaveForeground();
+        await waitFor(() => expect(setBadge()).toHaveBeenLastCalledWith(0));
+
+        await act(async () => {
+            await setCounts(database, operator, 'never', {lastViewedAt: 1700000000000});
+        });
+
+        await expectBoth(14, 14);
+    });
+
     it('IT-03⑧ 回帰（FR-36）R-1 の状態で、サーバー一覧のボタンが使う共有の購読は、メンション0のまま（件数7を数えない）', async () => {
         await seed({id: 'r1', isUnread: true, messageCount: 7, mentionsCount: 0});
         const seen: number[] = [];
