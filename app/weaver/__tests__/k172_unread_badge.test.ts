@@ -16,6 +16,7 @@ type Ch = {
     messageCount: number;
     mentionsCount: number;
     notifyProps?: Record<string, string | undefined>;
+    lastViewedAt?: number;
 };
 
 const normal = (over: Partial<Ch> = {}): Ch => ({isDmGm: false, isMuted: false, isUnread: true, messageCount: 7, mentionsCount: 0, ...over});
@@ -29,6 +30,7 @@ describe('UT-A getChannelBadgeCount（一覧の数字。規則表 R の「一覧
         ['UT-A03 通常・既読（is_unread=false）・7/2→メンションだけ（既読後も件数は残る）', normal({isUnread: false, mentionsCount: 2}), 2],
         ['UT-A04 通常・ミュート・未読・7/2（R-7）→メンションだけ（現行）', muted({mentionsCount: 2}), 2],
         ['UT-A05 DM・未読・7/3（R-8。GM も同じ分岐）→メンションだけ', dm({mentionsCount: 3}), 3],
+        ['UT-A07 通常・未読・14/2・一度も開いていない（lastViewedAt 0。R-10）→一覧は変えない＝14（B8 は一覧に効かない）', normal({messageCount: 14, mentionsCount: 2, lastViewedAt: 0}), 14],
     ])('%s', (_name, ch, expected) => {
         expect(getChannelBadgeCount(ch)).toBe(expected);
     });
@@ -42,6 +44,9 @@ describe('UT-B getBadgeTermForChannel（アイコン・タブの項。§5.1）',
         ['UT-B04 通常・push なし・未読・7/2→大きい方（足し算しない）', normal({mentionsCount: 2}), 7],
         ['UT-B05 通常・push なし・未読・3/5→大きい方', normal({messageCount: 3, mentionsCount: 5}), 5],
         ['UT-B08 通常・push なし・既読・7/1→メンションだけ', normal({isUnread: false, mentionsCount: 1}), 1],
+        ['UT-B09 通常・未読・14/2・lastViewedAt 0（R-10。一度も開いていない）→メンションだけ（B8。「＜0」で判定する誤りを見つける）', normal({messageCount: 14, mentionsCount: 2, lastViewedAt: 0}), 2],
+        ['UT-B10 通常・未読・14/2・lastViewedAt -3（WebSocket の新着で負になる実際の値。「＝0」で判定する誤りを見つける）→メンションだけ', normal({messageCount: 14, mentionsCount: 2, lastViewedAt: -3}), 2],
+        ['UT-B11 通常・未読・14/2・lastViewedAt 1（開いた行。落とさない）→大きい方', normal({messageCount: 14, mentionsCount: 2, lastViewedAt: 1}), 14],
     ])('%s', (_name, ch, expected) => {
         expect(getBadgeTermForChannel(ch)).toBe(expected);
     });
